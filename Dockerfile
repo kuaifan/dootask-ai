@@ -52,7 +52,7 @@ COPY static/ static/
 COPY requirements.txt .
 COPY README.md .
 COPY LICENSE .
-
+COPY start.sh .
 # 创建非 root 用户
 RUN useradd -m -u 1000 appuser && \
     chown -R appuser:appuser /app
@@ -67,4 +67,5 @@ HEALTHCHECK --start-period=10s --interval=3m --timeout=3s \
     CMD wget --no-verbose --tries=1 --spider http://localhost:$PORT/health || exit 1
 
 # 启动命令
-CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:$PORT --workers $WORKERS --timeout $TIMEOUT --access-logfile - --error-logfile - main:app"]
+# CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:$PORT --workers $WORKERS --timeout $TIMEOUT --access-logfile - --error-logfile - main:app"]
+CMD ["sh", "-c", "/app/start.sh", "$PORT", "$WORKERS", "$TIMEOUT"]

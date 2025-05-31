@@ -1,6 +1,8 @@
 from types import SimpleNamespace
-from flask import Flask, request, jsonify, Response, stream_with_context
-from flask_cors import CORS
+from fastapi import FastAPI, Request, Response, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.params import Form
+from fastapi.responses import JSONResponse, StreamingResponse
 from helper.utils import get_model_instance, get_swagger_ui, json_empty, json_error, json_content, filter_end_flag, replace_think_content, remove_reasoning_content, process_html_content
 from helper.request import Request
 from helper.redis import handle_context_limits, RedisManager
@@ -10,9 +12,37 @@ import json
 import time
 import random
 import string
+from typing import Optional, Dict, Any, List
+from pydantic import BaseModel
+import httpx
+from langchain_mcp_adapters.client import MultiServerMCPClient
+from langgraph.prebuilt import create_react_agent
+import asyncio
+from exceptiongroup import ExceptionGroup
+from langchain_core.messages.ai import AIMessage
+from fastapi import FastAPI, File, UploadFile, HTTPException, Header
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnablePassthrough
+import base64
+from io import BytesIO
+import re
 
-app = Flask(__name__)
-CORS(app)  # 启用CORS，允许所有来源的跨域请求
+
+app = FastAPI(
+    title="AI Chat API",
+    description="基于AI的聊天服务API",
+    version="1.0.0"
+)
+
+# 配置CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # 初始化 Redis 管理器
 redis_manager = RedisManager()
@@ -24,24 +54,64 @@ thread_pool = DynamicThreadPoolExecutor(
     thread_name_prefix="ai_stream_"
 )
 
+
+
+# 请求模型
+class ChatRequest(BaseModel):
+    text: str
+    token: str
+    dialog_id: int
+    dialog_type: Optional[str] = None
+    msg_id: Optional[int] = 0
+    msg_uid: int
+    mention: Optional[int] = 0
+    bot_uid: int
+    version: str
+    extras: Optional[str] = '{}'
+
+class InvokeRequest(BaseModel):
+    text: str
+    model_type: Optional[str] = 'openai'
+    model_name: Optional[str] = 'gpt-3.5-turbo'
+    system_message: Optional[str] = None
+    api_key: str
+    base_url: Optional[str] = None
+    agency: Optional[str] = None
+    temperature: Optional[float] = 0.7
+    max_tokens: Optional[int] = 0
+    thinking: Optional[int] = 0
+    before_text: Optional[str] = None
+    context_key: Optional[str] = None
+    context_limit: Optional[int] = 0
+
+class ImageRequest(BaseModel):
+    text: str
+    model_type: Optional[str] = 'openai'
+    model_name: Optional[str] = 'gpt-3.5-turbo'
+    system_message: Optional[str] = None
+    api_key: str
+    base_url: Optional[str] = None
+    agency: Optional[str] = None
+    image: Optional[UploadFile] = None
+    
 # 处理聊天请求
-@app.route('/chat', methods=['POST', 'GET'])
-def chat():
-    # 优先从 header 获取配置，如果不存在则从 POST 参数获取
-    text = request.args.get('text') or request.form.get('text')
-    token = request.args.get('token') or request.form.get('token')
-    dialog_id = int(request.args.get('dialog_id') or request.form.get('dialog_id') or 0)
-    dialog_type = request.args.get('dialog_type') or request.form.get('dialog_type')
-    msg_id = int(request.args.get('msg_id') or request.form.get('msg_id') or 0)
-    msg_uid = int(request.args.get('msg_uid') or request.form.get('msg_uid') or 0)
-    mention = int(request.args.get('mention') or request.form.get('mention') or 0)
-    bot_uid = int(request.args.get('bot_uid') or request.form.get('bot_uid') or 0)
-    version = request.args.get('version') or request.form.get('version')
-    extras = request.args.get('extras') or request.form.get('extras') or '{}'
+@app.post('/chat')
+async def chat(request: ChatRequest):
+    # 获取参数
+    text = request.text
+    token = request.token
+    dialog_id = request.dialog_id
+    dialog_type = request.dialog_type
+    msg_id = request.msg_id
+    msg_uid = request.msg_uid
+    mention = request.mention
+    bot_uid = request.bot_uid
+    version = request.version
+    extras = request.extras
     
     # 检查必要参数是否为空
     if not all([text, token, dialog_id, msg_uid, bot_uid, version]):
-        return jsonify({"code": 400, "error": "Parameter error"})
+        return JSONResponse(content={"code": 400, "error": "Parameter error"}, status_code=200)
 
     # 解析 extras 参数
     try:
@@ -60,11 +130,11 @@ def chat():
         context_key = extras_json.get('context_key', '')
         context_limit = int(extras_json.get('context_limit', 0))
     except json.JSONDecodeError:
-        return jsonify({"code": 400, "error": "Invalid extras parameter"})
+        return JSONResponse(content={"code": 400, "error": "Invalid extras parameter"}, status_code=200)
 
     # 检查 extras 解析后的必要参数是否为空
     if not all([model_type, model_name, server_url, api_key]):
-        return jsonify({"code": 400, "error": "Parameter error in extras"})
+        return JSONResponse(content={"code": 400, "error": "Parameter error in extras"}, status_code=200)
 
     # 上下文 before_text 处理
     if not before_text:
@@ -96,14 +166,14 @@ def chat():
                     "content": '[{"content":"再见"}]',
                     "silence": "yes",
                 }, action='template')   
-            return jsonify({"code": 200, "data": {"desc": "Bye"}})
+            return JSONResponse(content={"code": 200, "data": {"desc": "Bye"}}, status_code=200)
         
         # 如果是@消息，开启对话状态
         if mention:
             redis_manager.set_cache(chat_state_key, "active", ex=86400)
         # 如果没有@且不在对话状态中，不回复
         elif not redis_manager.get_cache(chat_state_key):
-            return jsonify({"code": 200, "data": {"desc": "Not in conversation state"}})
+            return JSONResponse(content={"code": 200, "data": {"desc": "Not in conversation state"}}, status_code=200)
         
         # 添加结束对话提示到系统消息
         end_prompt = f"如果你判断我想要结束对话（比如说再见、谢谢、不打扰了等），请在回复末尾添加标记：{END_CONVERSATION_MARK}。"
@@ -118,7 +188,7 @@ def chat():
             "silence": "yes",
             "source": "ai",
         }, action='notice')
-        return jsonify({"code": 200, "data": {"desc": "Context cleared"}})
+        return JSONResponse(content={"code": 200, "data": {"desc": "Context cleared"}}, status_code=200)
 
     # 创建消息
     send_id = request_client.call({
@@ -129,7 +199,7 @@ def chat():
         "reply_check": "yes",
     })
     if not send_id:
-        return jsonify({"code": 400, "error": "Send message failed"})
+        return JSONResponse(content={"code": 400, "error": "Send message failed"}, status_code=200)
 
     # 处理HTML内容（图片标签）
     text = process_html_content(text)
@@ -174,41 +244,62 @@ def chat():
     }, action='stream')
 
     # 返回成功响应
-    return jsonify({"code": 200, "data": {"id": send_id, "key": stream_key}})
+    return JSONResponse(content={"code": 200, "data": {"id": send_id, "key": stream_key}}, status_code=200)
 
 # 处理流式响应
-@app.route('/stream/<msg_id>/<stream_key>', methods=['GET'])
-def stream(msg_id, stream_key):
+@app.get('/stream/{msg_id}/{stream_key}')
+async def stream(msg_id: str, stream_key: str, token: str = Header(None)):
     if not stream_key:
-        return Response(
-            f"id: {msg_id}\nevent: done\ndata: {json_error('No key')}\n\n",
-            mimetype='text/event-stream'
+        async def error_stream():
+            yield f"id: {msg_id}\nevent: done\ndata: {json_error('No key')}\n\n"
+        return StreamingResponse(
+            error_stream(),
+            media_type='text/event-stream'
         )
 
     # 检查 msg_id 是否在 Redis 中
     data = redis_manager.get_input(msg_id)
     if not data:
-        return Response(
-            f"id: {msg_id}\nevent: done\ndata: {json_error('No such ID')}\n\n",
-            mimetype='text/event-stream'
+        async def error_stream():
+            yield f"id: {msg_id}\nevent: done\ndata: {json_error('No such ID')}\n\n"
+        return StreamingResponse(
+            error_stream(),
+            media_type='text/event-stream'
         )
 
     # 检查 stream_key 是否正确
     if stream_key != data["stream_key"]:
-        return Response(
-            f"id: {msg_id}\nevent: done\ndata: {json_error('Invalid key')}\n\n",
-            mimetype='text/event-stream'
+        async def error_stream():
+            yield f"id: {msg_id}\nevent: done\ndata: {json_error('Invalid key')}\n\n"
+        return StreamingResponse(
+            error_stream(),
+            media_type='text/event-stream'
         )
 
     # 如果 status 为 finished，直接返回
     if data["status"] == "finished":
-        return Response(
-            f"id: {msg_id}\nevent: replace\ndata: {json_content(data['response'])}\n\n"
-            f"id: {msg_id}\nevent: done\ndata: {json_empty()}\n\n",
-            mimetype='text/event-stream'
+        async def finished_stream():
+            yield f"""
+            id: {msg_id}\nevent: replace\ndata: {json_content(data['response'])}\n\n
+            id: {msg_id}\nevent: done\ndata: {json_empty()}\n\n
+            """
+        return StreamingResponse(
+            finished_stream(),
+            media_type='text/event-stream'
         )
-
-    def stream_generate(msg_id, msg_key, data, redis_manager):
+    client = MultiServerMCPClient(
+        {
+            "dootask-task": {
+                "url": "http://localhost:9000/mcp",
+                "transport": "streamable_http",
+                "headers": {
+                    "token": token
+                },
+            }
+        }
+    )
+    tools = await client.get_tools()
+    async def stream_generate(msg_id, msg_key, data, redis_manager):
         """
         流式生成响应
         """
@@ -278,9 +369,10 @@ def stream(msg_id, stream_key):
             # 状态变量
             has_reasoning = False
             is_response = False
-
+            
+            agent = create_react_agent(model, tools)
             # 开始请求流式响应
-            for chunk in model.stream(final_context):
+            async for chunk, _ in agent.astream(final_context):
                 if hasattr(chunk, 'content') and isinstance(chunk.content, list):
                     isContinue = True
                     if chunk.content:
@@ -372,7 +464,7 @@ def stream(msg_id, stream_key):
                 # 记录最终阶段的错误，但不影响主流程
                 print(f"Error in cleanup: {str(e)}")
 
-    def stream_producer():
+    async def stream_producer():
         """
         流式生产者
         """
@@ -382,7 +474,8 @@ def stream(msg_id, stream_key):
         
         # 如果是第一个请求，启动异步生产者
         if redis_manager.set_cache(msg_key, "", ex=STREAM_TIMEOUT, nx=True):
-            thread_pool.submit(stream_generate, msg_id, msg_key, data, redis_manager)
+            # thread_pool.submit(stream_generate, msg_id, msg_key, data, redis_manager)
+            producer_task = asyncio.create_task(stream_generate())
 
         # 所有请求都作为消费者处理
         wait_start = time.time()
@@ -401,6 +494,8 @@ def stream(msg_id, stream_key):
                 if current_time - wait_start > STREAM_TIMEOUT:
                     yield f"id: {msg_id}\nevent: replace\ndata: {json_content('Request timeout')}\n\n"
                     yield f"id: {msg_id}\nevent: done\ndata: {json_error('Timeout')}\n\n"
+                    if producer_task:
+                        producer_task.cancel()
                     return
                 last_timeout_check = current_time
 
@@ -419,39 +514,66 @@ def stream(msg_id, stream_key):
                     current_data = redis_manager.get_input(msg_id)
                     if current_data and current_data["status"] == "finished":
                         yield f"id: {msg_id}\nevent: done\ndata: {json_empty()}\n\n"
+                        if producer_task:
+                            producer_task.cancel()
                         return
                     last_status_check = current_time
 
             # 睡眠等待
-            time.sleep(sleep_interval)
+            await asyncio.sleep(sleep_interval)
+            # time.sleep(sleep_interval)
 
     # 返回流式响应
-    return Response(
-        stream_with_context(stream_producer()),
-        mimetype='text/event-stream'
+    return StreamingResponse(
+        stream_producer(),
+        media_type='text/event-stream'
     )
 
+def parse_langchain_response(messages: list) -> dict:
+    """
+    正确处理LangChain消息对象的解析函数
+    """
+    result = {
+        "final_response": "",
+        "metadata": {}
+    }
+    
+    for msg in messages:
+        if isinstance(msg, AIMessage):
+            print(msg)
+            print(msg.response_metadata)
+            print(msg.response_metadata["finish_reason"])
+        if isinstance(msg, AIMessage) and msg.response_metadata.get("finish_reason") == "stop":
+            # print("-------------")
+            result["final_response"] = msg.content
+            result["metadata"].update({
+                "model_name": msg.response_metadata.get("model_name"),
+                "prompt_tokens": msg.response_metadata.get("token_usage",{}).get("prompt_tokens"),
+                "total_tokens": msg.response_metadata.get("token_usage",{}).get("total_tokens")
+            })
+    return result
+
 # 处理直接请求
-@app.route('/invoke', methods=['POST', 'GET'])
-def invoke():
-    # 优先从 header 获取配置，如果不存在则从 POST 参数获取
-    text = request.args.get('text') or request.form.get('text')
-    model_type = request.args.get('model_type') or request.form.get('model_type') or 'openai'
-    model_name = request.args.get('model_name') or request.form.get('model_name') or 'gpt-3.5-turbo'
-    system_message = request.args.get('system_message') or request.form.get('system_message')
-    api_key = request.args.get('api_key') or request.form.get('api_key')
-    base_url = request.args.get('base_url') or request.form.get('base_url')
-    agency = request.args.get('agency') or request.form.get('agency')
-    temperature = float(request.args.get('temperature') or request.form.get('temperature') or 0.7)
-    max_tokens = int(request.args.get('max_tokens') or request.form.get('max_tokens') or 0)
-    thinking = int(request.args.get('thinking') or request.form.get('thinking') or 0)
-    before_text = request.args.get('before_text') or request.form.get('before_text')
-    context_key = request.args.get('context_key') or request.form.get('context_key')
-    context_limit = int(request.args.get('context_limit') or request.form.get('context_limit') or 0)
+@app.post('/invoke')
+async def invoke(request: InvokeRequest, token: str = Header(None)):
+    # 获取参数
+    text = request.text
+    model_type = request.model_type
+    model_name = request.model_name
+    system_message = request.system_message
+    api_key = request.api_key
+    base_url = request.base_url
+    agency = request.agency
+    temperature = request.temperature
+    max_tokens = request.max_tokens
+    thinking = request.thinking
+    before_text = request.before_text
+    context_key = request.context_key
+    context_limit = request.context_limit
     
     # 检查必要参数是否为空
     if not all([text, api_key]):
-        return jsonify({"code": 400, "error": "Parameter error"})
+        return JSONResponse(content={"code": 400, "error": "Parameter error"}, status_code=200)
 
     # 上下文 before_text 处理
     if not before_text:
@@ -506,50 +628,160 @@ def invoke():
         model_name=model_name, 
         custom_limit=context_limit
     )
-
+    client = MultiServerMCPClient(
+        {
+            "dootask-task": {
+                "url": "http://localhost:9000/mcp",
+                "transport": "streamable_http",
+                "headers": {
+                    "token": token
+                },
+            }
+        }
+    )
     # 开始请求直接响应
     try:
-        response = model.invoke(final_context)
-        resContent = replace_think_content(response.content)
+        tools = await client.get_tools()
+        agent = create_react_agent(model, tools)
+        response = await agent.ainvoke(final_context)
+        # response = model.invoke(final_context)
+        result = parse_langchain_response(response["messages"])
+        resContent = replace_think_content(result["final_response"])
         if context_key:
             redis_manager.extend_contexts(f"invoke_{context_key}", [
                 ("human", text),
                 ("assistant", remove_reasoning_content(resContent))
             ], model_type, model_name, context_limit)
-        return jsonify({
-            "code": 200, 
-            "data": {
-                "content": resContent,
-                "usage": {
-                    "total_tokens": response.usage_metadata.get("total_tokens", 0),
-                    "prompt_tokens": response.usage_metadata.get("input_tokens", 0),
-                    "completion_tokens": response.usage_metadata.get("output_tokens", 0)
+        return JSONResponse(
+            content={
+                "code": 200, 
+                "data": {
+                    "content": resContent,
+                    "usage": {
+                        "total_tokens": response.usage_metadata.get("total_tokens", 0),
+                        "prompt_tokens": response.usage_metadata.get("input_tokens", 0),
+                        "completion_tokens": response.usage_metadata.get("output_tokens", 0)
+                    }
                 }
-            }
-        })
+            },
+            status_code=200
+        )
+    except ExceptionGroup as eg:
+        # 处理异常组中的每个异常
+        for exc in eg.exceptions:
+            if isinstance(exc, httpx.ConnectError):
+                raise HTTPException(
+                    status_code=503,
+                    detail="后端服务不可用"
+                )
+        raise HTTPException(
+            status_code=500,
+            detail="处理请求时发生多个错误"
+        )
     except Exception as e:
-        return jsonify({"code": 500, "error": str(e)})
-
+        return JSONResponse(content={"code": 500, "error": str(e)}, status_code=200)
 # 健康检查
-@app.route('/health')
-def health():
+@app.get('/health')
+async def health():
     try:
         # 检查 Redis 连接
         redis_manager = RedisManager()
         redis_manager.client.ping()
-        return jsonify({"status": "healthy", "redis": "connected"}), 200
+        return JSONResponse(content={"status": "healthy", "redis": "connected"}, status_code=200)
     except Exception as e:
-        return jsonify({"status": "unhealthy", "error": str(e)}), 500
+        return JSONResponse(content={"status": "unhealthy", "error": str(e)}, status_code=500)
 
+
+def encode_image(image_file):
+    """将图片转换为base64编码"""
+    buffered = BytesIO()
+    image_file.save(buffered, format="PNG")
+    return base64.b64encode(buffered.getvalue()).decode()
+
+def create_image_message(image_base64):
+    """创建包含图片的消息"""
+    return {
+        "type": "image_url",
+        "image_url": {
+            "url": f"data:image/png;base64,{image_base64}"
+        }
+    }
+
+def parse_result(result):
+    """解析结果"""
+    if not result:
+        return {"error": "解析失败"}
+    match = re.search(r'\{[\s\S]*\}', result)
+    if match:
+        try:
+            data = match.group().replace("\n", "")
+            return json.loads(data)
+        except Exception as e:
+            return {"error": "转换json失败"}
+    else:
+        return {"error": "匹配失败"}
+
+@app.post("/analyze_image")
+async def analyze_image(
+    image: UploadFile = File(...),
+    model_type: str = Form(...),
+    model_name: str = Form(...),
+    api_key: str = Form(...),
+    base_url: str = Form(...),
+    agency: str = Form(...)
+):
+    try:
+        model = get_model_instance(
+            model_type=model_type,
+            model_name=model_name,
+            api_key=api_key,
+            base_url=base_url,
+            agency=agency,
+            streaming=False,
+        )
+        # 读取上传的图片
+        contents = await image.read()
+        image_base64 = base64.b64encode(contents).decode("utf-8")
+        
+        # 将图片转换为base64
+        # image_base64 = encode_image(image_data)
+        
+        # 创建提示模板
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", "你是一个专业的饭店菜单助手。"),
+            ("human", [{"type": "text", "text": "整理菜单信息,将结果以json格式返回"}, create_image_message(image_base64)])
+        ])
+        
+        # 创建LCEL链
+        chain = (
+            {"image": RunnablePassthrough()}
+            | prompt
+            | model
+            | StrOutputParser()
+        )
+        
+        # 执行分析
+        result = chain.invoke(image_base64)
+        print(result)
+        data = parse_result(result)
+        return {
+            'success': True,
+            'data': data
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
 # Swagger UI route
-@app.route('/swagger')
-def swagger():
+@app.get('/swagger')
+async def swagger():
     return get_swagger_ui()
 
 # Swagger YAML route
-@app.route('/swagger.yaml')
-def swagger_yaml():
+@app.get('/swagger.yaml')
+async def swagger_yaml():
     return app.send_static_file('swagger.yaml')
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=SERVER_PORT)
+    import uvicorn
+    uvicorn.run(app, host='0.0.0.0', port=SERVER_PORT)

@@ -17,3 +17,7 @@ qianfan
 redis>=5.0.0
 requests>=2.31.0
 tiktoken
+fastapi
+fastmcp
+langchain-mcp-adapters 
+langgraph
