@@ -16,6 +16,7 @@ import os
 import time
 import json
 import re
+from typing import Any, Generator
 
 # 预编译正则表达式
 _THINK_START_PATTERN = re.compile(r'<think>\s*')
@@ -242,3 +243,45 @@ def process_html_content(text):
     text = img_pattern.sub(replace_img_without_alt, text)
     
     return text
+
+
+
+def create_image_message(image_base64):
+    """创建包含图片的消息"""
+    return {
+        "type": "image_url",
+        "image_url": {
+            "url": f"data:image/png;base64,{image_base64}"
+        }
+    }
+
+def parse_result(result):
+    """解析结果"""
+    if not result:
+        return {"error": "解析失败"}
+    match = re.search(r'\{[\s\S]*\}', result)
+    if match:
+        try:
+            data = match.group().replace("\n", "")
+            return json.loads(data)
+        except Exception as e:
+            return {"error": "转换json失败"}
+    else:
+        return {"error": "匹配失败"}
+
+def find_names(data: Any, name: str) -> Generator[Any, None, None]:
+    """
+    生成器方式查找所有name字段值，更节省内存
+    参数:
+        data: 输入的数据结构
+    生成:
+        每次yield一个name字段值
+    """
+    if isinstance(data, dict):
+        if name in data:
+            yield data[name]
+        for value in data.values():
+            yield from find_names(value)
+    elif isinstance(data, list):
+        for item in data:
+            yield from find_names(item)

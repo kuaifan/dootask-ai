@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 from flask import Flask, request, jsonify, Response, stream_with_context
 from flask_cors import CORS
-from helper.utils import get_model_instance, get_swagger_ui, json_empty, json_error, json_content, filter_end_flag, replace_think_content, remove_reasoning_content, process_html_content
+from helper.utils import get_model_instance, get_swagger_ui, json_empty, json_error, json_content, filter_end_flag, replace_think_content, remove_reasoning_content, process_html_content, create_image_message, parse_result, find_names
 from helper.request import Request
 from helper.redis import handle_context_limits, RedisManager
 from helper.thread_pool import DynamicThreadPoolExecutor
@@ -10,6 +10,11 @@ import json
 import time
 import random
 import string
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnablePassthrough
+import base64
+from helper.milvus import FoodSearchTool
 
 app = Flask(__name__)
 CORS(app)  # 启用CORS，允许所有来源的跨域请求
@@ -23,6 +28,7 @@ thread_pool = DynamicThreadPoolExecutor(
     max_workers=50,
     thread_name_prefix="ai_stream_"
 )
+search_tool = FoodSearchTool(db_path="/app/db/milvus.db", collection_name="food_data")
 
 # 处理聊天请求
 @app.route('/chat', methods=['POST', 'GET'])
@@ -529,6 +535,72 @@ def invoke():
         })
     except Exception as e:
         return jsonify({"code": 500, "error": str(e)})
+
+@app.route("/analyze_image", methods=['POST'])
+def analyze_image():
+    text = request.args.get('text') or request.form.get('text')
+    model_type = request.args.get('model_type') or request.form.get('model_type') or 'openai'
+    model_name = request.args.get('model_name') or request.form.get('model_name') or 'gpt-4o'
+    api_key = request.args.get('api_key') or request.form.get('api_key')
+    base_url = request.args.get('base_url') or request.form.get('base_url')
+    agency = request.args.get('agency') or request.form.get('agency')
+    if not text:
+        text = "整理菜单信息,将结果以json格式返回,菜品名称固定使用name字段,菜品价格固定使用price字段"
+    try:
+        model = get_model_instance(
+            model_type=model_type,
+            model_name=model_name,
+            api_key=api_key,
+            base_url=base_url,
+            agency=agency,
+            streaming=False,
+        )
+        if 'image' not in request.files:
+            return jsonify({'error': 'No image provided'}), 400
+    
+        image = request.files['image']
+        # 读取上传的图片
+        contents = image.read()
+        image_base64 = base64.b64encode(contents).decode("utf-8")
+        
+        # 创建提示模板
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", "你是一个专业的饭店菜单助手。"),
+            ("human", [{"type": "text", "text": text}, create_image_message(image_base64)])
+        ])
+        
+        # 创建LCEL链
+        chain = (
+            {"image": RunnablePassthrough()}
+            | prompt
+            | model
+            | StrOutputParser()
+        )
+        
+        # 执行分析
+        result = chain.invoke(image_base64)
+        # print(result)
+        data = parse_result(result)
+        names_list = list(find_names(data,"name"))
+        similar_result = search_tool.search_by_name(names_list, top_k=3, threshold=0.75)
+        return jsonify({
+            "code": 200,
+            "data": {
+                "result": data,
+                "search_results": similar_result
+            }
+        })
+    except Exception as e:
+        return jsonify({"code": 500, "error": str(e)})
+
+@app.route('/insert_food', methods=['POST'])
+def insert_food():
+    data = request.get_json()
+    if not data or not isinstance(data, list):
+        return jsonify({"error": "Invalid data format"}), 400
+    
+    result = search_tool.insert_data(data)
+    return jsonify({"success": True, "inserted_count": len(result['ids'])})
 
 # 健康检查
 @app.route('/health')
