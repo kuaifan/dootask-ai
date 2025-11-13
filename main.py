@@ -266,7 +266,7 @@ async def stream(msg_id: str, stream_key: str, host: str = Header("", alias="Hos
             media_type='text/event-stream'
         )
     tools = []
-    if app.state.mcp:
+    if app.state.dootask_mcp:
         client = MultiServerMCPClient(
             {
                 "dootask-task": {
@@ -644,7 +644,7 @@ async def invoke_stream(request: Request, stream_key: str):
         )
         host = request.headers.get("Host")
         tools = []
-        if app.state.mcp:
+        if app.state.dootask_mcp:
             client = MultiServerMCPClient(
                 {
                     "dootask-task": {

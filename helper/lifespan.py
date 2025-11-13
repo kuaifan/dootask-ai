@@ -23,9 +23,9 @@ async def check_mcp_health(app: FastAPI) -> None:
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(MCP_HEALTH_URL, timeout=3)
-            app.state.mcp = response.json().get("status") == "ok"
+            app.state.dootask_mcp = response.json().get("status") == "ok"
     except Exception as exc:  # pragma: no cover - best effort external check
-        app.state.mcp = False
+        app.state.dootask_mcp = False
         logger.error(f"❌ 检测 MCP 失败: {MCP_HEALTH_URL} - 错误: {exc}")
 
 
