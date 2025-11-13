@@ -1,27 +1,45 @@
-from types import SimpleNamespace
-from pathlib import Path
-from fastapi import FastAPI, Request, Header
-from fastapi.concurrency import asynccontextmanager
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse, FileResponse
-from helper.utils import convert_message_content_to_string, dict_to_message, get_model_instance, get_swagger_ui, json_empty, json_error, json_content, message_to_dict, remove_tool_calls, replace_think_content, remove_reasoning_content, process_html_content
-from helper.request import RequestClient
-from helper.invoke import parse_context, build_invoke_stream_key
-from helper.redis import handle_context_limits, RedisManager
-from helper.config import SERVER_PORT, CLEAR_COMMANDS, STREAM_TIMEOUT, END_CONVERSATION_MARK
+# 标准库导入
+import asyncio
 import json
-import time
+import logging
 import random
 import string
-import httpx
-from langchain_mcp_adapters.client import MultiServerMCPClient
-import asyncio
-from exceptiongroup import ExceptionGroup
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, AIMessageChunk
+import time
+from pathlib import Path
+from types import SimpleNamespace
 
-from langchain.agents import create_agent 
+# 第三方库导入
+from exceptiongroup import ExceptionGroup
+from fastapi import FastAPI, Request, Header
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, StreamingResponse, FileResponse
+from langchain.agents import create_agent
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, AIMessageChunk
+from langchain_mcp_adapters.client import MultiServerMCPClient
+
+# 本地模块导入
+from helper.config import SERVER_PORT, CLEAR_COMMANDS, STREAM_TIMEOUT, END_CONVERSATION_MARK
+from helper.invoke import parse_context, build_invoke_stream_key
+from helper.lifespan import lifespan_context
 from helper.models import ModelListError, get_models_list
-import logging
+from helper.redis import handle_context_limits
+from helper.request import RequestClient
+from helper.utils import (
+    convert_message_content_to_string,
+    dict_to_message,
+    get_model_instance,
+    get_swagger_ui,
+    json_empty,
+    json_error,
+    json_content,
+    message_to_dict,
+    remove_tool_calls,
+    replace_think_content,
+    remove_reasoning_content,
+    process_html_content
+)
+
+# 日志配置
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -31,61 +49,23 @@ logging.basicConfig(
 )
 logger = logging.getLogger("ai")
 
-
+# 常量定义
 UI_DIST_PATH = Path(__file__).resolve().parent / "static" / "ui"
 
-
+# 工具函数
 def ui_assets_available() -> bool:
+    """检查 UI 资源是否可用"""
     return UI_DIST_PATH.exists() and UI_DIST_PATH.is_dir()
 
-async def check_website_async(app: FastAPI):
-    """检测MCP是否安装"""
-    url = "http://nginx/apps/mcp_server/healthz"  # 替换为你的网址
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get( url, timeout=3 )
-            if response.json().get("status") == "ok":
-                app.state.mcp = True
-            else:
-                app.state.mcp = False
-    except Exception as e:
-        app.state.mcp = False
-        logger.error(f"❌ 检测MCP失败: {url} - 错误: {e}")
-
-async def periodic_check(app: FastAPI):
-    """定时检测任务"""
-    while True:
-        await check_website_async(app)
-        await asyncio.sleep(60)  # 10分钟 = 600秒
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # 启动时初始化
-    try:
-        task = asyncio.create_task(periodic_check(app))
-        redis_manager = RedisManager()
-        logger.info("✅ 初始化成功")
-        app.state.redis_manager = redis_manager
-    except Exception as e:
-        logger.info(f"❌ 初始化失败: {str(e)}")
-    yield
-    # 关闭时
-    task.cancel()
-    try:
-        await task
-    except asyncio.CancelledError:
-        pass
-    logger.info("✅ 定时任务已停止")
-    # 关闭时清理
-    logger.info("🛑 AI服务正在关闭...")
-
+# FastAPI 应用初始化
 app = FastAPI(
     title="AI Chat API",
     description="基于AI的聊天服务API",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan_context
 )
-# 配置CORS
+
+# 中间件配置
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -94,9 +74,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 @app.api_route("/chat", methods=["GET", "POST"])
 async def chat(request: Request):
+    """接收 chat 请求，校验参数并准备 SSE 数据流所需的缓存信息。"""
     # 智能参数提取
     if request.method == "GET":
         params = dict(request.query_params)
@@ -245,9 +225,9 @@ async def chat(request: Request):
     # 返回成功响应
     return JSONResponse(content={"code": 200, "data": {"id": send_id, "key": stream_key}}, status_code=200)
 
-# 处理流式响应
 @app.get('/stream/{msg_id}/{stream_key}')
 async def stream(msg_id: str, stream_key: str, host: str = Header("", alias="Host"), scheme: str = Header("http", alias="scheme")):
+    """校验 msg_id/stream_key 并通过 SSE 发送缓存的对话输出。"""
     if not stream_key:
         async def error_stream():
             yield f"id: {msg_id}\nevent: done\ndata: {json_error('No key')}\n\n"
@@ -526,7 +506,6 @@ async def stream(msg_id: str, stream_key: str, host: str = Header("", alias="Hos
         media_type='text/event-stream'
     )
 
-# 直连模型：提交参数生成 stream_key，再用 SSE GET 获取响应
 @app.post('/invoke/auth')
 @app.get('/invoke/auth')
 async def invoke_auth(request: Request, token: str = Header(..., alias="Authorization")):
@@ -599,13 +578,13 @@ async def invoke_auth(request: Request, token: str = Header(..., alias="Authoriz
         }
     })
 
-# 处理直接请求
 @app.post('/invoke/stream/{stream_key}')
 @app.get('/invoke/stream/{stream_key}')
-async def invoke(request: Request, stream_key: str):
+async def invoke_stream(request: Request, stream_key: str):
+    """使用 stream_key 返回直连模型的 SSE 响应流。"""
     if not stream_key:
         async def error_stream():
-            yield f"id: {stream}\nevent: done\ndata: {json_error('No key')}\n\n"
+            yield f"id: 0\nevent: done\ndata: {json_error('No key')}\n\n"
         return StreamingResponse(
             error_stream(),
             media_type='text/event-stream'
@@ -761,104 +740,18 @@ async def invoke(request: Request, stream_key: str):
         stream_invoke_response(),
         media_type='text/event-stream'
     )
-    
-# 直连模型：同步返回完整响应，不使用流式输出。
-@app.api_route('/invoke/synch', methods=['POST', 'GET'])
-async def invoke_synch(request: Request, token: str = Header(..., alias="Authorization")):
-    """
-    直连模型：同步返回完整响应，不使用流式输出。
-    """
-    if request.method == "GET":
-        params = dict(request.query_params)
-    else:
-        form_data = await request.form()
-        params = dict(form_data)
-    defaults = {
-        'model_type': 'openai',
-        'model_name': 'gpt-5-chat',
-        'max_tokens': 0,
-        'temperature': 0.7,
-        'thinking': 0,
-    }
-    
-    # 应用默认值和类型转换
-    for key, default_value in defaults.items():
-        value = params.get(key, default_value)
-        if isinstance(default_value, int):
-            try:
-                params[key] = int(value)
-            except (ValueError, TypeError):
-                params[key] = default_value
-        else:
-            params[key] = value
 
-    context_messages = parse_context(params.get("context"))
-
-    api_key = params.get('api_key')
-    base_url = params.get('base_url')
-    agency = params.get('agency')
-
-    model_type, model_name, max_tokens, temperature, thinking = (
-        params[k] for k in defaults.keys()
-    )
-
-    # 检查必要参数是否为空
-    if not all([context_messages, api_key]):
-        return JSONResponse(content={"code": 400, "error": "Parameter error"}, status_code=200)
-    
-    try:
-        model = get_model_instance(
-            model_type=model_type,
-            model_name=model_name,
-            api_key=api_key,
-            base_url=base_url,
-            agency=agency,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            thinking=thinking,
-            streaming=False,
-        )
-        host = request.headers.get("Host")
-        tools = []
-        if app.state.mcp:
-            client = MultiServerMCPClient(
-                {
-                    "dootask-task": {
-                        "url": f"https://{host}/apps/mcp_server/mcp",
-                        "transport": "streamable_http",
-                        "headers": {
-                            "token": token or "unknown"
-                        },
-                    }
-                }
-            )
-            tools = await client.get_tools()
-        agent = create_agent(model, tools)
-    except Exception as exc:
-        return JSONResponse(content={"code": 400, "error": str(exc)}, status_code=400)
-
-    try:
-        logger.info(context_messages)
-        result = await agent.ainvoke({"messages": context_messages})
-        response_text = result["messages"][-1].content
-        response_text = replace_think_content(response_text)
-        response_text = remove_reasoning_content(response_text)
-        return JSONResponse(content={"code": 200, "data": {"content": response_text}}, status_code=200)
-    except Exception as exc:
-        return JSONResponse(content={"code": 500, "error": str(exc)}, status_code=500)
-
-
-# 前端 UI 首页路由
 @app.get('/')
 async def root():
+    """返回 UI 页面的入口或简单的健康提示。"""
     if not ui_assets_available():
         return JSONResponse(content={"message": "DooTask AI service"}, status_code=200)
     return FileResponse(UI_DIST_PATH / 'index.html')
 
-# 前端 UI 静态资源路由
 @app.get('/ui/')
 @app.get('/ui/{path:path}')
 async def ui_assets(path: str = 'index.html'):
+    """提供静态 UI 文件，若不存在则返回默认 index.html。"""
     if not ui_assets_available():
         return JSONResponse(content={"error": "UI assets not available"}, status_code=404)
 
@@ -869,14 +762,9 @@ async def ui_assets(path: str = 'index.html'):
 
     return FileResponse(UI_DIST_PATH / 'index.html')
 
-# 获取模型列表
 @app.get('/models/list')
-async def models_list(
-    type: str = '',
-    base_url: str = '',
-    key: str = '',
-    agency: str = ''
-):
+async def models_list(type: str = '', base_url: str = '', key: str = '', agency: str = ''):
+    """返回可以用于前端展示的模型列表。"""
     model_type = type.strip()
     base_url = base_url.strip()
     key = key.strip()
@@ -899,9 +787,9 @@ async def models_list(
 
     return JSONResponse(content={"code": 200, "data": data}, status_code=200)
 
-# 健康检查
 @app.get('/health')
 async def health():
+    """执行 Redis 等资源的简单健康检查。"""
     try:
 
         await app.state.redis_manager.client.ping()
@@ -909,15 +797,14 @@ async def health():
     except Exception as e:
         return JSONResponse(content={"status": "unhealthy", "error": str(e)}, status_code=500)
 
-
-# Swagger UI route
 @app.get('/swagger')
 async def swagger():
+    """返回内置的 Swagger UI 页面。"""
     return get_swagger_ui()
 
-# Swagger YAML route
 @app.get('/swagger.yaml')
 async def swagger_yaml():
+    """提供 Swagger YAML 描述文件。"""
     static_file_path = Path(__file__).resolve().parent / "static" / "swagger.yaml"
     return FileResponse(static_file_path)
 
