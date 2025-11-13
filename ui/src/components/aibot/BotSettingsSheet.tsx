@@ -450,11 +450,17 @@ export const BotSettingsSheet = ({
                     disabled={modelEditorDefaultsLoading || modelEditorSaving}
                   />
                 </div>
-                {modelEditor.field.functions && (
+              </div>
+              <ScrollBar orientation="vertical" />
+            </ScrollArea>
+          )}
+          <SheetFooter className="gap-3 border-t pt-4">
+            <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:justify-between sm:gap-4">
+              <div className="flex items-center gap-3">
+                {modelEditor?.field.functions && (
                   <Button
                     type="button"
                     variant="outline"
-                    size="sm"
                     disabled={modelEditorDefaultsLoading || modelEditorSaving}
                     onClick={handleUseDefaultModelsInternal}
                   >
@@ -464,21 +470,18 @@ export const BotSettingsSheet = ({
                   </Button>
                 )}
               </div>
-              <ScrollBar orientation="vertical" />
-            </ScrollArea>
-          )}
-          <SheetFooter className="gap-3 border-t pt-4">
-            <div className="flex w-full flex-col gap-2 sm:flex-row sm:justify-end sm:gap-3">
-              <Button type="button" variant="outline" onClick={handleCloseModelEditor}>
-                {t("sheet.models.cancel")}
-              </Button>
-              <Button
-                type="button"
-                onClick={handleSaveModelEditor}
-                disabled={!modelEditorHasChanges || modelEditorSaving}
-              >
-                {t("sheet.models.save")}
-              </Button>
+              <div className="flex items-center gap-3">
+                <Button type="button" variant="outline" onClick={handleCloseModelEditor}>
+                  {t("sheet.models.cancel")}
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleSaveModelEditor}
+                  disabled={!modelEditorHasChanges || modelEditorSaving}
+                >
+                  {t("sheet.models.save")}
+                </Button>
+              </div>
             </div>
           </SheetFooter>
         </SheetContent>

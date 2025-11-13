@@ -14,12 +14,16 @@ import {
 
 import { BotCard } from "@/components/aibot/BotCard"
 import { BotSettingsSheet } from "@/components/aibot/BotSettingsSheet"
+import { MCPListCard } from "@/components/aibot/MCPListCard"
+import { MCPEditorSheet } from "@/components/aibot/MCPEditorSheet"
 import type { AIBotItem, AIBotKey } from "@/data/aibots"
 import { createLocalizedAIBotList } from "@/data/aibots"
 import { getAISystemConfig, type SystemConfig } from "@/data/aibot-config"
+import type { MCPConfig } from "@/data/mcp-config"
 import { mergeFields, parseModelNames } from "@/lib/aibot"
 import type { GeneratedField } from "@/lib/aibot"
 import { useI18n } from "@/lib/i18n-context"
+import { loadMCPConfigs, saveMCPConfig, deleteMCPConfig } from "@/lib/mcp-storage"
 
 type SettingsState = Record<AIBotKey, Record<string, string>>
 type LoadingState = Record<AIBotKey, boolean>
@@ -82,15 +86,39 @@ function App() {
   const [settingsSavingMap, setSettingsSavingMap] = useState<LoadingState>({} as LoadingState)
   const [defaultsLoading, setDefaultsLoading] = useState<LoadingState>({} as LoadingState)
 
+  const [mcps, setMcps] = useState<MCPConfig[]>([])
+  const [mcpEditorOpen, setMcpEditorOpen] = useState(false)
+  const [editingMcp, setEditingMcp] = useState<MCPConfig | null>(null)
+
   const settingsOpenRef = useRef(settingsOpen)
+  const mcpEditorOpenRef = useRef(mcpEditorOpen)
   const interceptReleaseRef = useRef<(() => void) | null>(null)
   const modelEditorBackHandlerRef = useRef<() => boolean>(() => false)
 
   const fieldMap = useMemo(() => fieldMapFactory(bots, systemConfig), [bots, systemConfig])
 
+  // 获取所有模型的映射表 (modelValue => modelLabel)
+  const allModels = useMemo(() => {
+    const models: Record<string, string> = {}
+    bots.forEach((bot) => {
+      if (bot.tags && bot.tags.length > 0) {
+        bot.tags.forEach((tag) => {
+          // 从 tags 获取显示名称，使用 tag 作为 key
+          // 由于我们没有原始的 model value，这里使用 tag 本身作为 key
+          models[tag] = tag
+        })
+      }
+    })
+    return models
+  }, [bots])
+
   useEffect(() => {
     settingsOpenRef.current = settingsOpen
   }, [settingsOpen])
+
+  useEffect(() => {
+    mcpEditorOpenRef.current = mcpEditorOpen
+  }, [mcpEditorOpen])
 
   useEffect(() => {
     setBots((prev) => createLocalizedAIBotList(lang, prev))
@@ -118,12 +146,51 @@ function App() {
       }
 
       await refreshBotTags()
+      await loadMcps()
     }
 
     init().catch((error) => {
       console.error("Failed to initialize AI assistant UI", error)
     })
   }, [])
+
+  const loadMcps = async () => {
+    try {
+      const configs = await loadMCPConfigs()
+
+      // 检查是否已存在 DooTask MCP
+      const hasDooTaskMcp = configs.some(mcp => mcp.isSystem && mcp.name === "DooTask")
+
+      // 如果不存在，添加默认的 DooTask MCP
+      if (!hasDooTaskMcp) {
+        // 通过 healthz 接口获取 DooTask MCP 状态
+        let dootaskEnabled = false
+        try {
+          const response = await fetch('/apps/mcp_server/healthz')
+          if (response.ok) {
+            const data = await response.json()
+            dootaskEnabled = data.status === "ok"
+          }
+        } catch (err) {
+          console.warn("Failed to fetch DooTask MCP status", err)
+        }
+
+        const dootaskMcp: MCPConfig = {
+          name: "DooTask",
+          config: "{}",
+          supportedModels: [],
+          enabled: dootaskEnabled,
+          isSystem: true
+        }
+
+        setMcps([dootaskMcp, ...configs])
+      } else {
+        setMcps(configs)
+      }
+    } catch (error) {
+      console.error("Failed to load MCP configs", error)
+    }
+  }
 
   const refreshBotTags = async () => {
     try {
@@ -212,6 +279,10 @@ function App() {
         if (modelEditorBackHandlerRef.current && modelEditorBackHandlerRef.current()) {
           return true
         }
+        if (mcpEditorOpenRef.current) {
+          setMcpEditorOpen(false)
+          return true
+        }
         if (settingsOpenRef.current) {
           setSettingsOpenState(false)
           return true
@@ -240,12 +311,12 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (isAdmin && settingsOpen) {
+    if (isAdmin && (settingsOpen || mcpEditorOpen)) {
       void ensureIntercept()
-    } else if (!settingsOpen) {
+    } else if (!settingsOpen && !mcpEditorOpen) {
       releaseIntercept()
     }
-  }, [ensureIntercept, isAdmin, releaseIntercept, settingsOpen])
+  }, [ensureIntercept, isAdmin, releaseIntercept, settingsOpen, mcpEditorOpen])
 
   useEffect(() => {
     return () => {
@@ -385,6 +456,63 @@ function App() {
     setSettingsOpenState(open)
   }
 
+  const handleAddMcp = () => {
+    if (!isAdmin) {
+      messageError(t("errors.adminOnly"))
+      return
+    }
+    setEditingMcp(null)
+    setMcpEditorOpen(true)
+  }
+
+  const handleEditMcp = (mcp: MCPConfig) => {
+    if (!isAdmin) {
+      messageError(t("errors.adminOnly"))
+      return
+    }
+    setEditingMcp(mcp)
+    setMcpEditorOpen(true)
+  }
+
+  const handleDeleteMcp = async (name: string) => {
+    if (!isAdmin) {
+      messageError(t("errors.adminOnly"))
+      return
+    }
+    if (!confirm(t("mcp.deleteMessage"))) {
+      return
+    }
+    try {
+      const newMcps = await deleteMCPConfig(name, mcps)
+      setMcps(newMcps)
+      messageSuccess(t("success.save"))
+    } catch (error) {
+      messageError(resolveErrorMessage(error, t("errors.submitFailed")))
+    }
+  }
+
+  const handleSaveMcp = async (mcp: MCPConfig) => {
+    try {
+      // 如果是系统MCP（DooTask），更新app.state.dootask_mcp
+      if (mcp.isSystem && mcp.name === "DooTask") {
+        // 只更新本地状态，不保存到文件
+        const newMcps = mcps.map(m =>
+          m.isSystem && m.name === "DooTask"
+            ? { ...m, supportedModels: mcp.supportedModels, enabled: mcp.enabled }
+            : m
+        )
+        setMcps(newMcps)
+        messageSuccess(t("success.save"))
+      } else {
+        const newMcps = await saveMCPConfig(mcp, mcps)
+        setMcps(newMcps)
+        messageSuccess(t("success.save"))
+      }
+    } catch (error) {
+      messageError(resolveErrorMessage(error, t("errors.submitFailed")))
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 p-6 sm:p-10">
@@ -412,27 +540,49 @@ function App() {
             </div>
           )}
         </section>
+        {isAdmin && (
+          <section>
+            <MCPListCard
+              mcps={mcps}
+              bots={bots}
+              allModels={allModels}
+              onAdd={handleAddMcp}
+              onEdit={handleEditMcp}
+              onDelete={handleDeleteMcp}
+            />
+          </section>
+        )}
       </div>
       {isAdmin && (
-        <BotSettingsSheet
-          open={Boolean(settingsOpen)}
-          onOpenChange={handleSheetOpenChange}
-          bots={bots}
-          activeBot={activeBot}
-          onActiveBotChange={handleTabChange}
-          fieldMap={fieldMap}
-          formValues={formValues}
-          initialValues={initialValues}
-          loadingMap={settingsLoadingMap}
-          savingMap={settingsSavingMap}
-          defaultsLoadingMap={defaultsLoading}
-          onReload={handleReload}
-          onChangeField={handleChangeField}
-          onSubmit={handleSubmit}
-          onReset={handleReset}
-          onUseDefaultModels={handleUseDefaultModels}
-          onRegisterModelEditorBackHandler={handleRegisterModelEditorBackHandler}
-        />
+        <>
+          <BotSettingsSheet
+            open={Boolean(settingsOpen)}
+            onOpenChange={handleSheetOpenChange}
+            bots={bots}
+            activeBot={activeBot}
+            onActiveBotChange={handleTabChange}
+            fieldMap={fieldMap}
+            formValues={formValues}
+            initialValues={initialValues}
+            loadingMap={settingsLoadingMap}
+            savingMap={settingsSavingMap}
+            defaultsLoadingMap={defaultsLoading}
+            onReload={handleReload}
+            onChangeField={handleChangeField}
+            onSubmit={handleSubmit}
+            onReset={handleReset}
+            onUseDefaultModels={handleUseDefaultModels}
+            onRegisterModelEditorBackHandler={handleRegisterModelEditorBackHandler}
+          />
+          <MCPEditorSheet
+            open={mcpEditorOpen}
+            onOpenChange={setMcpEditorOpen}
+            mcp={editingMcp}
+            bots={bots}
+            allModels={allModels}
+            onSave={handleSaveMcp}
+          />
+        </>
       )}
     </div>
   )

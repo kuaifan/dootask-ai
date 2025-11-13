@@ -6,6 +6,9 @@ import { resolve } from "path"
 export default defineConfig({
   base: "/ai/ui/",
   plugins: [react()],
+  server: {
+    allowedHosts: [".com"]
+  },
   resolve: {
     alias: {
       "@": resolve(__dirname, "./src"),

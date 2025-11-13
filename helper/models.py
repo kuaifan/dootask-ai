@@ -7,10 +7,16 @@ import httpx
 
 DEFAULT_MODELS: Dict[str, List[str]] = {
     "openai": [
+        "gpt-5-chat-latest | GPT-5 Chat",
+        "gpt-5-codex | GPT-5-Codex",
+        "gpt-5-mini | GPT-5 mini",
+        "gpt-5-nano | GPT-5 nano",
+        "gpt-5-pro | GPT-5 pro",
+        "gpt-5.1-chat-latest | GPT-5.1 Chat",
+        "gpt-5.1-codex-mini | GPT-5.1 Codex mini",
+        "gpt-5.1-codex | GPT-5.1 Codex",
+        "gpt-5.1 | GPT-5.1",
         "gpt-5 | GPT-5",
-        "gpt-5-mini | GPT-5 Mini",
-        "gpt-5-nano | GPT-5 Nano",
-        "gpt-5-pro | GPT-5 Pro",
         "gpt-4.1 | GPT-4.1",
         "gpt-4o | GPT-4o",
         "gpt-4 | GPT-4",
@@ -52,7 +58,7 @@ DEFAULT_MODELS: Dict[str, List[str]] = {
     "grok": [
         "grok-code-fast-1 | Grok Code Fast 1",
         "grok-4-fast-reasoning | Grok 4 Fast Reasoning",
-        "grok-4-fast-non-reasoning | Grok 4 Fast Non-Reasoning",
+        "grok-4-fast-non-reasoning | Grok 4 Fast",
         "grok-4-0709 | Grok 4",
         "grok-3-latest | Grok 3",
         "grok-3-fast-latest | Grok 3 Fast",

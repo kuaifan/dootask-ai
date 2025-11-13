@@ -63,6 +63,7 @@ log/
 *.cert
 credentials.json
 config.json
+mcp-config.json
 
 # Database
 *.db

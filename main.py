@@ -787,6 +787,36 @@ async def models_list(type: str = '', base_url: str = '', key: str = '', agency:
 
     return JSONResponse(content={"code": 200, "data": data}, status_code=200)
 
+@app.get('/mcp/config')
+async def get_mcp_config():
+    """获取MCP配置列表"""
+    config_file = Path(__file__).resolve().parent / "mcp-config.json"
+
+    if not config_file.exists():
+        return JSONResponse(content={"mcps": []}, status_code=200)
+
+    try:
+        with open(config_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return JSONResponse(content=data, status_code=200)
+    except Exception as e:
+        logger.error(f"Failed to read MCP config: {e}")
+        return JSONResponse(content={"error": "Failed to read MCP config"}, status_code=500)
+
+@app.post('/mcp/config')
+async def save_mcp_config(request: Request):
+    """保存MCP配置列表"""
+    config_file = Path(__file__).resolve().parent / "mcp-config.json"
+
+    try:
+        data = await request.json()
+        with open(config_file, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        return JSONResponse(content={"success": True}, status_code=200)
+    except Exception as e:
+        logger.error(f"Failed to save MCP config: {e}")
+        return JSONResponse(content={"error": "Failed to save MCP config"}, status_code=500)
+
 @app.get('/health')
 async def health():
     """执行 Redis 等资源的简单健康检查。"""
