@@ -437,7 +437,19 @@ function App() {
         throw new Error(t("errors.modelsNotFound"))
       }
 
-      const modelsString = modelsArray.join("\n")
+      // 处理新的 JSON 格式：检查是否是对象数组（包含 id, name, support_mcp）
+      let modelsString: string
+      if (modelsArray.length > 0 && typeof modelsArray[0] === 'object' && 'id' in modelsArray[0]) {
+        // 新格式：{id, name, support_mcp} 转换为 "id|name" 格式
+        modelsString = modelsArray
+          .map((model: { id: string; name: string; support_mcp: boolean }) =>
+            model.name && model.name !== model.id ? `${model.id}|${model.name}` : model.id
+          )
+          .join("\n")
+      } else {
+        // 旧格式：直接是字符串数组
+        modelsString = modelsArray.join("\n")
+      }
       messageSuccess(t("success.fetchSuccess"))
       return modelsString
     } catch (error) {

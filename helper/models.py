@@ -1,103 +1,110 @@
 from __future__ import annotations
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, TypedDict
 
 import httpx
 
 
-DEFAULT_MODELS: Dict[str, List[str]] = {
+class ModelInfo(TypedDict):
+    """模型信息类型定义"""
+    id: str
+    name: str
+    support_mcp: bool
+
+
+DEFAULT_MODELS: Dict[str, List[ModelInfo]] = {
     "openai": [
-        "gpt-5-chat-latest | GPT-5 Chat",
-        "gpt-5-codex | GPT-5-Codex",
-        "gpt-5-mini | GPT-5 mini",
-        "gpt-5-nano | GPT-5 nano",
-        "gpt-5-pro | GPT-5 pro",
-        "gpt-5.1-chat-latest | GPT-5.1 Chat",
-        "gpt-5.1-codex-mini | GPT-5.1 Codex mini",
-        "gpt-5.1-codex | GPT-5.1 Codex",
-        "gpt-5.1 | GPT-5.1",
-        "gpt-5 | GPT-5",
-        "gpt-4.1 | GPT-4.1",
-        "gpt-4o | GPT-4o",
-        "gpt-4 | GPT-4",
-        "gpt-4o-mini | GPT-4o Mini",
-        "gpt-4-turbo | GPT-4 Turbo",
-        "o3 | GPT-o3",
-        "o1 | GPT-o1",
-        "o4-mini | GPT-o4 Mini",
-        "o3-mini | GPT-o3 Mini",
-        "o1-mini | GPT-o1 Mini",
-        "gpt-3.5-turbo | GPT-3.5 Turbo",
-        "gpt-3.5-turbo-16k | GPT-3.5 Turbo 16K",
-        "gpt-3.5-turbo-0125 | GPT-3.5 Turbo 0125",
-        "gpt-3.5-turbo-1106 | GPT-3.5 Turbo 1106",
+        {"id": "gpt-5-chat-latest", "name": "GPT-5 Chat", "support_mcp": True},
+        {"id": "gpt-5-codex", "name": "GPT-5-Codex", "support_mcp": True},
+        {"id": "gpt-5-mini", "name": "GPT-5 mini", "support_mcp": True},
+        {"id": "gpt-5-nano", "name": "GPT-5 nano", "support_mcp": True},
+        {"id": "gpt-5-pro", "name": "GPT-5 pro", "support_mcp": True},
+        {"id": "gpt-5.1-chat-latest", "name": "GPT-5.1 Chat", "support_mcp": True},
+        {"id": "gpt-5.1-codex-mini", "name": "GPT-5.1 Codex mini", "support_mcp": True},
+        {"id": "gpt-5.1-codex", "name": "GPT-5.1 Codex", "support_mcp": True},
+        {"id": "gpt-5.1", "name": "GPT-5.1", "support_mcp": True},
+        {"id": "gpt-5", "name": "GPT-5", "support_mcp": True},
+        {"id": "gpt-4.1", "name": "GPT-4.1", "support_mcp": True},
+        {"id": "gpt-4o", "name": "GPT-4o", "support_mcp": True},
+        {"id": "gpt-4", "name": "GPT-4", "support_mcp": True},
+        {"id": "gpt-4o-mini", "name": "GPT-4o Mini", "support_mcp": True},
+        {"id": "gpt-4-turbo", "name": "GPT-4 Turbo", "support_mcp": True},
+        {"id": "o3", "name": "GPT-o3", "support_mcp": True},
+        {"id": "o1", "name": "GPT-o1", "support_mcp": False},
+        {"id": "o4-mini", "name": "GPT-o4 Mini", "support_mcp": True},
+        {"id": "o3-mini", "name": "GPT-o3 Mini", "support_mcp": True},
+        {"id": "o1-mini", "name": "GPT-o1 Mini", "support_mcp": False},
+        {"id": "gpt-3.5-turbo", "name": "GPT-3.5 Turbo", "support_mcp": False},
+        {"id": "gpt-3.5-turbo-16k", "name": "GPT-3.5 Turbo 16K", "support_mcp": False},
+        {"id": "gpt-3.5-turbo-0125", "name": "GPT-3.5 Turbo 0125", "support_mcp": False},
+        {"id": "gpt-3.5-turbo-1106", "name": "GPT-3.5 Turbo 1106", "support_mcp": False},
     ],
     "claude": [
-        "claude-sonnet-4-5 (thinking) | Claude Sonnet 4.5",
-        "claude-haiku-4-5 (thinking) | Claude Haiku 4.5",
-        "claude-opus-4-1 (thinking) | Claude Opus 4.1",
-        "claude-sonnet-4-0 (thinking) | Claude Sonnet 4.0",
-        "claude-opus-4-0 (thinking) | Claude Opus 4.0",
-        "claude-3-7-sonnet-latest (thinking) | Claude Sonnet 3.7",
-        "claude-3-5-haiku-latest | Claude Haiku 3.5",
+        {"id": "claude-sonnet-4-5 (thinking)", "name": "Claude Sonnet 4.5", "support_mcp": True},
+        {"id": "claude-haiku-4-5 (thinking)", "name": "Claude Haiku 4.5", "support_mcp": True},
+        {"id": "claude-opus-4-1 (thinking)", "name": "Claude Opus 4.1", "support_mcp": True},
+        {"id": "claude-sonnet-4-0 (thinking)", "name": "Claude Sonnet 4.0", "support_mcp": True},
+        {"id": "claude-opus-4-0 (thinking)", "name": "Claude Opus 4.0", "support_mcp": True},
+        {"id": "claude-3-7-sonnet-latest (thinking)", "name": "Claude Sonnet 3.7", "support_mcp": True},
+        {"id": "claude-3-5-haiku-latest", "name": "Claude Haiku 3.5", "support_mcp": True},
     ],
     "deepseek": [
-        "deepseek-chat | DeepSeek-V3.2",
-        "deepseek-reasoner | DeepSeek-V3.2-Reasoner",
+        {"id": "deepseek-chat", "name": "DeepSeek-V3.2", "support_mcp": True},
+        {"id": "deepseek-reasoner", "name": "DeepSeek-V3.2-Reasoner", "support_mcp": True},
     ],
     "gemini": [
-        "gemini-2.5-pro | Gemini 2.5 Pro",
-        "gemini-2.5-pro-tts | Gemini 2.5 Pro TTS",
-        "gemini-2.5-flash | Gemini 2.5 Flash",
-        "gemini-2.5-flash-tts | Gemini 2.5 Flash TTS",
-        "gemini-2.5-flash-live | Gemini 2.5 Flash Live",
-        "gemini-2.5-flash-image | Gemini 2.5 Flash Image",
-        "gemini-2.0-flash | Gemini 2.0 Flash",
-        "gemini-2.0-flash-lite | Gemini 2.0 Flash Lite",
+        {"id": "gemini-2.5-pro", "name": "Gemini 2.5 Pro", "support_mcp": True},
+        {"id": "gemini-2.5-pro-tts", "name": "Gemini 2.5 Pro TTS", "support_mcp": True},
+        {"id": "gemini-2.5-flash", "name": "Gemini 2.5 Flash", "support_mcp": True},
+        {"id": "gemini-2.5-flash-tts", "name": "Gemini 2.5 Flash TTS", "support_mcp": True},
+        {"id": "gemini-2.5-flash-live", "name": "Gemini 2.5 Flash Live", "support_mcp": True},
+        {"id": "gemini-2.5-flash-image", "name": "Gemini 2.5 Flash Image", "support_mcp": True},
+        {"id": "gemini-2.0-flash", "name": "Gemini 2.0 Flash", "support_mcp": False},
+        {"id": "gemini-2.0-flash-lite", "name": "Gemini 2.0 Flash Lite", "support_mcp": False},
     ],
     "grok": [
-        "grok-code-fast-1 | Grok Code Fast 1",
-        "grok-4-fast-reasoning | Grok 4 Fast Reasoning",
-        "grok-4-fast-non-reasoning | Grok 4 Fast",
-        "grok-4-0709 | Grok 4",
-        "grok-3-latest | Grok 3",
-        "grok-3-fast-latest | Grok 3 Fast",
+        {"id": "grok-code-fast-1", "name": "Grok Code Fast 1", "support_mcp": True},
+        {"id": "grok-4-fast-reasoning", "name": "Grok 4 Fast Reasoning", "support_mcp": True},
+        {"id": "grok-4-fast-non-reasoning", "name": "Grok 4 Fast", "support_mcp": True},
+        {"id": "grok-4-0709", "name": "Grok 4", "support_mcp": True},
+        {"id": "grok-3-latest", "name": "Grok 3", "support_mcp": False},
+        {"id": "grok-3-fast-latest", "name": "Grok 3 Fast", "support_mcp": False},
     ],
     "zhipu": [
-        "glm-4 | GLM-4",
-        "glm-4-plus | GLM-4 Plus",
-        "glm-4-air | GLM-4 Air",
-        "glm-4-airx | GLM-4 AirX",
-        "glm-4-long | GLM-4 Long",
-        "glm-4-flash | GLM-4 Flash",
-        "glm-4v | GLM-4V",
-        "glm-4v-plus | GLM-4V Plus",
-        "glm-3-turbo | GLM-3 Turbo",
+        {"id": "glm-4", "name": "GLM-4", "support_mcp": True},
+        {"id": "glm-4-plus", "name": "GLM-4 Plus", "support_mcp": True},
+        {"id": "glm-4-air", "name": "GLM-4 Air", "support_mcp": True},
+        {"id": "glm-4-airx", "name": "GLM-4 AirX", "support_mcp": True},
+        {"id": "glm-4-long", "name": "GLM-4 Long", "support_mcp": True},
+        {"id": "glm-4-flash", "name": "GLM-4 Flash", "support_mcp": True},
+        {"id": "glm-4v", "name": "GLM-4V", "support_mcp": False},
+        {"id": "glm-4v-plus", "name": "GLM-4V Plus", "support_mcp": False},
+        {"id": "glm-3-turbo", "name": "GLM-3 Turbo", "support_mcp": False},
     ],
     "qianwen": [
-        "qwen-max | QWEN Max",
-        "qwen-max-latest | QWEN Max Latest",
-        "qwen-turbo | QWEN Turbo",
-        "qwen-turbo-latest | QWEN Turbo Latest",
-        "qwen-plus | QWEN Plus",
-        "qwen-plus-latest | QWEN Plus Latest",
-        "qwen-long | QWEN Long",
+        {"id": "qwen-max", "name": "QWEN Max", "support_mcp": True},
+        {"id": "qwen-max-latest", "name": "QWEN Max Latest", "support_mcp": False},
+        {"id": "qwen-turbo", "name": "QWEN Turbo", "support_mcp": False},
+        {"id": "qwen-turbo-latest", "name": "QWEN Turbo Latest", "support_mcp": False},
+        {"id": "qwen-plus", "name": "QWEN Plus", "support_mcp": False},
+        {"id": "qwen-plus-latest", "name": "QWEN Plus Latest", "support_mcp": False},
+        {"id": "qwen-long", "name": "QWEN Long", "support_mcp": False},
     ],
     "wenxin": [
-        "ernie-4.5-turbo-128k | Ernie 4.5 Turbo 128K",
-        "ernie-4.5-turbo-32k | Ernie 4.5 Turbo 32K",
-        "ernie-4.5-turbo-latest | Ernie 4.5 Turbo Latest",
-        "ernie-4.5-turbo-vl | Ernie 4.5 Turbo VL",
-        "ernie-4.0-8k | Ernie 4.0 8K",
-        "ernie-4.0-8k-latest | Ernie 4.0 8K Latest",
-        "ernie-4.0-turbo-128k | Ernie 4.0 Turbo 128K",
-        "ernie-4.0-turbo-8k | Ernie 4.0 Turbo 8K",
-        "ernie-3.5-128k | Ernie 3.5 128K",
-        "ernie-3.5-8k | Ernie 3.5 8K",
-        "ernie-speed-128k | Ernie Speed 128K",
-        "ernie-speed-8k | Ernie Speed 8K",
-        "ernie-lite-8k | Ernie Lite 8K",
-        "ernie-tiny-8k | Ernie Tiny 8K",
+        {"id": "ernie-4.5-turbo-128k", "name": "Ernie 4.5 Turbo 128K", "support_mcp": True},
+        {"id": "ernie-4.5-turbo-32k", "name": "Ernie 4.5 Turbo 32K", "support_mcp": True},
+        {"id": "ernie-4.5-turbo-latest", "name": "Ernie 4.5 Turbo Latest", "support_mcp": True},
+        {"id": "ernie-4.5-turbo-vl", "name": "Ernie 4.5 Turbo VL", "support_mcp": True},
+        {"id": "ernie-4.0-8k", "name": "Ernie 4.0 8K", "support_mcp": False},
+        {"id": "ernie-4.0-8k-latest", "name": "Ernie 4.0 8K Latest", "support_mcp": False},
+        {"id": "ernie-4.0-turbo-128k", "name": "Ernie 4.0 Turbo 128K", "support_mcp": False},
+        {"id": "ernie-4.0-turbo-8k", "name": "Ernie 4.0 Turbo 8K", "support_mcp": False},
+        {"id": "ernie-3.5-128k", "name": "Ernie 3.5 128K", "support_mcp": False},
+        {"id": "ernie-3.5-8k", "name": "Ernie 3.5 8K", "support_mcp": False},
+        {"id": "ernie-speed-128k", "name": "Ernie Speed 128K", "support_mcp": False},
+        {"id": "ernie-speed-8k", "name": "Ernie Speed 8K", "support_mcp": False},
+        {"id": "ernie-lite-8k", "name": "Ernie Lite 8K", "support_mcp": False},
+        {"id": "ernie-tiny-8k", "name": "Ernie Tiny 8K", "support_mcp": False},
     ],
 }
 
@@ -143,7 +150,7 @@ def _fetch_ollama_models(
     if not isinstance(models, list):
         raise ModelListError("获取失败：无效的返回结构")
 
-    formatted: List[str] = []
+    formatted: List[ModelInfo] = []
     for item in models:
         if not isinstance(item, dict):
             continue
@@ -151,10 +158,11 @@ def _fetch_ollama_models(
         display_name = item.get("name")
         if not model_name:
             continue
-        if display_name and display_name != model_name:
-            formatted.append(f"{model_name} | {display_name}")
-        else:
-            formatted.append(str(model_name))
+        formatted.append({
+            "id": str(model_name),
+            "name": display_name if display_name and display_name != model_name else str(model_name),
+            "support_mcp": False
+        })
 
     if not formatted:
         raise ModelListError("未找到默认模型")

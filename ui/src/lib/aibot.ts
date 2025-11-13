@@ -6,8 +6,25 @@ export interface GeneratedField extends FieldConfig {
   originalProp: string
 }
 
-export const parseModelNames = (raw: string | undefined | null) => {
+export interface ModelItem {
+  id: string
+  name: string
+  support_mcp: boolean
+}
+
+export const parseModelNames = (raw: string | ModelItem[] | undefined | null) => {
   if (!raw) return []
+
+  // 如果已经是数组格式（新的 JSON 格式）
+  if (Array.isArray(raw)) {
+    return raw.map(item => ({
+      value: item.id,
+      label: item.name,
+      support_mcp: item.support_mcp
+    }))
+  }
+
+  // 兼容旧的字符串格式 "id | name"
   return raw
     .split("\n")
     .map((line) => line.trim())
@@ -17,6 +34,7 @@ export const parseModelNames = (raw: string | undefined | null) => {
       return {
         value,
         label: label || value,
+        support_mcp: false
       }
     })
     .filter((item) => item.value)
