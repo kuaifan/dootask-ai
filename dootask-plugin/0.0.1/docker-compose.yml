@@ -6,3 +6,8 @@ services:
       REDIS_HOST: "${REDIS_HOST}"
       REDIS_PORT: "${REDIS_PORT}"
       TIMEOUT: 600
+    volumes:
+      - dootask-ai-config:/app/config
+
+volumes:
+  dootask-ai-config:

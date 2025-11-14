@@ -18,7 +18,7 @@ CLEAR_COMMANDS = [":clear", ":reset", ":restart", ":new", ":清空上下文", ":
 STREAM_TIMEOUT = 300
 
 # MCP 配置文件路径及默认名称
-MCP_CONFIG_PATH = BASE_DIR / "mcp-config.json"
+MCP_CONFIG_PATH = BASE_DIR / "config" / "mcp-config.json"
 DOOTASK_MCP_NAME = "DooTask MCP"
 DOOTASK_MCP_ID = "dootask-mcp"
 

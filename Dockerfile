@@ -62,8 +62,9 @@ COPY requirements.txt .
 COPY README.md .
 COPY LICENSE .
 
-# 创建非 root 用户
+# 创建配置目录并设置非 root 用户权限
 RUN useradd -m -u 1000 appuser && \
+    mkdir -p /app/config && \
     chown -R appuser:appuser /app
 
 USER appuser
