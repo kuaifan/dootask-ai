@@ -19,6 +19,13 @@ export interface AIBotItem {
   desc: string
   tags: string[]
   tagLabel?: string
+  models?: AIBotModelOption[]
+}
+
+export interface AIBotModelOption {
+  value: string
+  label: string
+  support_mcp: boolean
 }
 
 interface AIBotDefinition {
@@ -142,11 +149,12 @@ const AIBOT_DEFINITIONS: AIBotDefinition[] = [
 export const createLocalizedAIBotList = (lang: Language, previous?: AIBotItem[]): AIBotItem[] => {
   const extras =
     previous?.reduce<
-      Partial<Record<AIBotKey, Pick<AIBotItem, "tags" | "tagLabel">>>
+      Partial<Record<AIBotKey, Pick<AIBotItem, "tags" | "tagLabel" | "models">>>
     >((acc, bot) => {
       acc[bot.value] = {
         tags: bot.tags,
         tagLabel: bot.tagLabel,
+        models: bot.models,
       }
       return acc
     }, {}) ?? {}
@@ -160,6 +168,7 @@ export const createLocalizedAIBotList = (lang: Language, previous?: AIBotItem[])
       desc: getLocalizedText(definition.desc, lang),
       tags: extra?.tags ?? [],
       tagLabel: extra?.tagLabel,
+      models: extra?.models ?? [],
     }
   })
 }

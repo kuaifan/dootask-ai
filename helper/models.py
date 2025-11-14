@@ -61,14 +61,17 @@ def save_mcp_config_data(data: Dict[str, object]) -> None:
         raise MCPConfigError("Failed to write MCP config") from exc
 
 
-def _collect_supported_mcp_models() -> list[str]:
-    """从默认模型表收集支持 MCP 的模型 ID。"""
-    seen: set[str] = set()
+def _collect_supported_mcp_models() -> list[Dict[str, str]]:
+    """从默认模型表收集支持 MCP 的模型列表。"""
+    seen: Dict[str, str] = {}
     for items in DEFAULT_MODELS.values():
         for item in items:
             if item.get("support_mcp"):
-                seen.add(item["id"])
-    return sorted(seen)
+                seen[item["id"]] = item.get("name") or item["id"]
+    return [
+        {"id": model_id, "name": seen[model_id]}
+        for model_id in sorted(seen.keys())
+    ]
 
 
 def ensure_dootask_mcp_config(enabled: bool) -> None:

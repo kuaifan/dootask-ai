@@ -101,21 +101,6 @@ function App() {
 
   const fieldMap = useMemo(() => fieldMapFactory(bots, systemConfig), [bots, systemConfig])
 
-  // 获取所有模型的映射表 (modelValue => modelLabel)
-  const allModels = useMemo(() => {
-    const models: Record<string, string> = {}
-    bots.forEach((bot) => {
-      if (bot.tags && bot.tags.length > 0) {
-        bot.tags.forEach((tag) => {
-          // 从 tags 获取显示名称，使用 tag 作为 key
-          // 由于我们没有原始的 model value，这里使用 tag 本身作为 key
-          models[tag] = tag
-        })
-      }
-    })
-    return models
-  }, [bots])
-
   useEffect(() => {
     settingsOpenRef.current = settingsOpen
   }, [settingsOpen])
@@ -190,6 +175,7 @@ function App() {
             ...bot,
             tags: options.map((option) => option.label),
             tagLabel: tagLabel ?? undefined,
+            models: options,
           }
         }),
       )
@@ -532,7 +518,6 @@ function App() {
             <MCPListCard
               mcps={mcps}
               bots={bots}
-              allModels={allModels}
               onAdd={handleAddMcp}
               onEdit={handleEditMcp}
               onDelete={handleDeleteMcp}
@@ -566,7 +551,6 @@ function App() {
             onOpenChange={setMcpEditorOpen}
             mcp={editingMcp}
             bots={bots}
-            allModels={allModels}
             onSave={handleSaveMcp}
           />
         </>

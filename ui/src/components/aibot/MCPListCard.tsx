@@ -8,7 +8,6 @@ import { useI18n } from "@/lib/i18n-context"
 export interface MCPListCardProps {
   mcps: MCPConfig[]
   bots: AIBotItem[]
-  allModels: Record<string, string> // key: modelValue, value: modelLabel
   onEdit: (mcp: MCPConfig) => void
   onDelete: (name: string) => void
   onAdd: () => void
@@ -16,16 +15,11 @@ export interface MCPListCardProps {
 
 export const MCPListCard = ({
   mcps,
-  allModels,
   onEdit,
   onDelete,
   onAdd,
 }: MCPListCardProps) => {
   const { t } = useI18n()
-
-  const getModelLabel = (modelValue: string) => {
-    return allModels[modelValue] ?? modelValue
-  }
 
   return (
     <Card className="w-full">
@@ -63,13 +57,13 @@ export const MCPListCard = ({
                   </div>
                   {mcp.supportedModels.length > 0 && (
                     <div className="flex flex-wrap gap-1.5">
-                      {mcp.supportedModels.slice(0, 2).map((modelValue) => (
+                      {mcp.supportedModels.slice(0, 2).map((model) => (
                         <Badge
-                          key={modelValue}
+                          key={model.id}
                           variant="secondary"
                           className="text-xs"
                         >
-                          {getModelLabel(modelValue)}
+                          {model.name}
                         </Badge>
                       ))}
                       {mcp.supportedModels.length > 2 && (

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -16,7 +16,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
-import type { MCPConfig } from "@/data/mcp-config"
+import type { MCPConfig, SupportedModel } from "@/data/mcp-config"
 import type { AIBotItem } from "@/data/aibots"
 import { useI18n } from "@/lib/i18n-context"
 
@@ -25,7 +25,6 @@ export interface MCPEditorSheetProps {
   onOpenChange: (open: boolean) => void
   mcp: MCPConfig | null
   bots: AIBotItem[]
-  allModels: Record<string, string> // key: modelValue, value: modelLabel
   onSave: (mcp: MCPConfig) => void
 }
 
@@ -34,40 +33,37 @@ export const MCPEditorSheet = ({
   onOpenChange,
   mcp,
   bots,
-  allModels,
   onSave,
 }: MCPEditorSheetProps) => {
   const { t } = useI18n()
   const [name, setName] = useState("")
   const [config, setConfig] = useState("")
-  const [supportedModels, setSupportedModels] = useState<string[]>([])
+  const [supportedModels, setSupportedModels] = useState<SupportedModel[]>([])
   const [enabled, setEnabled] = useState(true)
   const [configError, setConfigError] = useState("")
 
   // 将所有模型按AI厂商分组
-  const modelsByBot = bots.reduce((acc, bot) => {
-    const models = bot.tags || []
-    if (models.length > 0) {
-      acc[bot.value] = {
-        label: bot.label,
-        models: models.map(tag => {
-          // 从 allModels 中找到对应的模型值
-          const modelEntry = Object.entries(allModels).find(([_, label]) => label === tag)
-          return {
-            value: modelEntry?.[0] || tag,
-            label: tag
-          }
-        })
+  const modelsByBot = useMemo(() => {
+    return bots.reduce((acc, bot) => {
+      const models = bot.models ?? []
+      if (models.length > 0) {
+        acc[bot.value] = {
+          label: bot.label,
+          models: models.map((model) => ({
+            value: model.value,
+            label: model.label,
+          })),
+        }
       }
-    }
-    return acc
-  }, {} as Record<string, { label: string, models: { value: string, label: string }[] }>)
+      return acc
+    }, {} as Record<string, { label: string; models: { value: string; label: string }[] }>)
+  }, [bots])
 
   useEffect(() => {
     if (mcp) {
       setName(mcp.name)
       setConfig(mcp.config)
-      setSupportedModels(mcp.supportedModels)
+      setSupportedModels(mcp.supportedModels ? [...mcp.supportedModels] : [])
       setEnabled(mcp.enabled)
     } else {
       setName("")
@@ -98,13 +94,24 @@ export const MCPEditorSheet = ({
     validateConfig(value)
   }
 
-  const handleToggleModel = (modelValue: string, checked: boolean) => {
-    if (checked) {
-      setSupportedModels((prev) => [...prev, modelValue])
-    } else {
-      setSupportedModels((prev) => prev.filter((m) => m !== modelValue))
+  const handleToggleModel = (model: { value: string; label: string }, checked: boolean | string) => {
+    const isChecked = checked === true
+    if (isChecked) {
+      setSupportedModels((prev) => {
+        if (prev.some((item) => item.id === model.value)) {
+          return prev
+        }
+        return [...prev, { id: model.value, name: model.label }]
+      })
+      return
     }
+    setSupportedModels((prev) => prev.filter((m) => m.id !== model.value))
   }
+
+  const normalizeModels = (models: SupportedModel[]) =>
+    [...models]
+      .map((model) => ({ id: model.id, name: model.name }))
+      .sort((a, b) => a.id.localeCompare(b.id))
 
   const handleSave = () => {
     if (!name.trim()) {
@@ -127,7 +134,8 @@ export const MCPEditorSheet = ({
     ? name !== mcp.name ||
       config !== mcp.config ||
       enabled !== mcp.enabled ||
-      JSON.stringify(supportedModels.sort()) !== JSON.stringify(mcp.supportedModels.sort())
+      JSON.stringify(normalizeModels(supportedModels)) !==
+        JSON.stringify(normalizeModels(mcp.supportedModels ?? []))
     : name.trim() !== "" || config.trim() !== "" || supportedModels.length > 0 || !enabled
 
   return (
@@ -198,8 +206,8 @@ export const MCPEditorSheet = ({
                         <Checkbox
                           key={model.value}
                           id={`model-${model.value}`}
-                          checked={supportedModels.includes(model.value)}
-                          onCheckedChange={(checked) => handleToggleModel(model.value, checked)}
+                          checked={supportedModels.some((m) => m.id === model.value)}
+                          onCheckedChange={(checked) => handleToggleModel(model, checked)}
                         >
                           {model.label}
                         </Checkbox>
