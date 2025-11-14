@@ -56,6 +56,10 @@ const fieldMapFactory = (
 }
 
 const emptyState = {} as SettingsState
+const DOOTASK_MCP_NAME = "DooTask MCP"
+
+const isSystemDooTaskMcp = (mcp: MCPConfig) =>
+  Boolean(mcp.isSystem && (mcp.name === DOOTASK_MCP_NAME || mcp.name === "DooTask"))
 
 const resolveErrorMessage = (error: unknown, fallback: string) => {
   if (error && typeof error === "object") {
@@ -157,36 +161,7 @@ function App() {
   const loadMcps = async () => {
     try {
       const configs = await loadMCPConfigs()
-
-      // 检查是否已存在 DooTask MCP
-      const hasDooTaskMcp = configs.some(mcp => mcp.isSystem && mcp.name === "DooTask")
-
-      // 如果不存在，添加默认的 DooTask MCP
-      if (!hasDooTaskMcp) {
-        // 通过 healthz 接口获取 DooTask MCP 状态
-        let dootaskEnabled = false
-        try {
-          const response = await fetch('/apps/mcp_server/healthz')
-          if (response.ok) {
-            const data = await response.json()
-            dootaskEnabled = data.status === "ok"
-          }
-        } catch (err) {
-          console.warn("Failed to fetch DooTask MCP status", err)
-        }
-
-        const dootaskMcp: MCPConfig = {
-          name: "DooTask",
-          config: "{}",
-          supportedModels: [],
-          enabled: dootaskEnabled,
-          isSystem: true
-        }
-
-        setMcps([dootaskMcp, ...configs])
-      } else {
-        setMcps(configs)
-      }
+      setMcps(configs)
     } catch (error) {
       console.error("Failed to load MCP configs", error)
     }
@@ -506,10 +481,10 @@ function App() {
   const handleSaveMcp = async (mcp: MCPConfig) => {
     try {
       // 如果是系统MCP（DooTask），更新app.state.dootask_mcp
-      if (mcp.isSystem && mcp.name === "DooTask") {
+      if (isSystemDooTaskMcp(mcp)) {
         // 只更新本地状态，不保存到文件
         const newMcps = mcps.map(m =>
-          m.isSystem && m.name === "DooTask"
+          isSystemDooTaskMcp(m)
             ? { ...m, supportedModels: mcp.supportedModels, enabled: mcp.enabled }
             : m
         )

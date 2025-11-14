@@ -21,7 +21,13 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from helper.config import SERVER_PORT, CLEAR_COMMANDS, STREAM_TIMEOUT, END_CONVERSATION_MARK
 from helper.invoke import parse_context, build_invoke_stream_key
 from helper.lifespan import lifespan_context
-from helper.models import ModelListError, get_models_list
+from helper.models import (
+    MCPConfigError,
+    ModelListError,
+    get_models_list,
+    load_mcp_config_data,
+    save_mcp_config_data,
+)
 from helper.redis import handle_context_limits
 from helper.request import RequestClient
 from helper.utils import (
@@ -790,31 +796,26 @@ async def models_list(type: str = '', base_url: str = '', key: str = '', agency:
 @app.get('/mcp/config')
 async def get_mcp_config():
     """获取MCP配置列表"""
-    config_file = Path(__file__).resolve().parent / "mcp-config.json"
-
-    if not config_file.exists():
-        return JSONResponse(content={"mcps": []}, status_code=200)
-
     try:
-        with open(config_file, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+        data = load_mcp_config_data()
         return JSONResponse(content=data, status_code=200)
-    except Exception as e:
-        logger.error(f"Failed to read MCP config: {e}")
+    except MCPConfigError as exc:
+        logger.error(f"Failed to read MCP config: {exc}")
         return JSONResponse(content={"error": "Failed to read MCP config"}, status_code=500)
 
 @app.post('/mcp/config')
 async def save_mcp_config(request: Request):
     """保存MCP配置列表"""
-    config_file = Path(__file__).resolve().parent / "mcp-config.json"
-
     try:
         data = await request.json()
-        with open(config_file, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        if not isinstance(data, dict):
+            raise ValueError("Invalid payload")
+        save_mcp_config_data(data)
         return JSONResponse(content={"success": True}, status_code=200)
-    except Exception as e:
-        logger.error(f"Failed to save MCP config: {e}")
+    except ValueError:
+        return JSONResponse(content={"error": "Invalid MCP config payload"}, status_code=400)
+    except MCPConfigError as exc:
+        logger.error(f"Failed to save MCP config: {exc}")
         return JSONResponse(content={"error": "Failed to save MCP config"}, status_code=500)
 
 @app.get('/health')

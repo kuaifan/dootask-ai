@@ -1,8 +1,16 @@
 from __future__ import annotations
 
+import json
+import logging
+from pathlib import Path
 from typing import Dict, List, Optional, TypedDict
 
 import httpx
+
+logger = logging.getLogger("ai")
+
+MCP_CONFIG_PATH = Path(__file__).resolve().parent.parent / "mcp-config.json"
+DOOTASK_MCP_NAME = "DooTask MCP"
 
 
 class ModelInfo(TypedDict):
@@ -107,6 +115,84 @@ DEFAULT_MODELS: Dict[str, List[ModelInfo]] = {
         {"id": "ernie-tiny-8k", "name": "Ernie Tiny 8K", "support_mcp": False},
     ],
 }
+
+
+class MCPConfigError(Exception):
+    """Raised when MCP 配置文件读写失败。"""
+
+
+def _default_mcp_config() -> Dict[str, object]:
+    return {"mcps": []}
+
+
+def _normalize_mcp_config(data: Dict[str, object]) -> Dict[str, object]:
+    mcps = data.get("mcps")
+    if not isinstance(mcps, list):
+        data["mcps"] = []
+    return data
+
+
+def load_mcp_config_data(fallback_empty: bool = False) -> Dict[str, object]:
+    """读取 MCP 配置文件。"""
+    if not MCP_CONFIG_PATH.exists():
+        return _default_mcp_config()
+
+    try:
+        with open(MCP_CONFIG_PATH, "r", encoding="utf-8") as config_file:
+            data = json.load(config_file)
+            if not isinstance(data, dict):
+                data = _default_mcp_config()
+            return _normalize_mcp_config(data)
+    except Exception as exc:
+        if fallback_empty:
+            logger.error(f"❌ 读取 MCP 配置失败: {exc}")
+            return _default_mcp_config()
+        raise MCPConfigError("Failed to read MCP config") from exc
+
+
+def save_mcp_config_data(data: Dict[str, object]) -> None:
+    """写入 MCP 配置文件。"""
+    normalized = _normalize_mcp_config(data)
+    try:
+        with open(MCP_CONFIG_PATH, "w", encoding="utf-8") as config_file:
+            json.dump(normalized, config_file, ensure_ascii=False, indent=2)
+    except Exception as exc:
+        raise MCPConfigError("Failed to write MCP config") from exc
+
+
+def _collect_supported_mcp_models() -> list[str]:
+    """从默认模型表收集支持 MCP 的模型 ID。"""
+    seen: set[str] = set()
+    for items in DEFAULT_MODELS.values():
+        for item in items:
+            if item.get("support_mcp"):
+                seen.add(item["id"])
+    return sorted(seen)
+
+
+def ensure_dootask_mcp_config(enabled: bool) -> None:
+    """确保 DooTask MCP 配置已写入配置文件。"""
+    config_data = load_mcp_config_data(fallback_empty=True)
+    mcps = config_data.get("mcps") or []
+
+    if any(mcp.get("name") == DOOTASK_MCP_NAME for mcp in mcps):
+        return
+
+    default_config = {
+        "name": DOOTASK_MCP_NAME,
+        "config": "{}",
+        "supportedModels": _collect_supported_mcp_models(),
+        "enabled": enabled,
+        "isSystem": True,
+    }
+    mcps.append(default_config)
+    config_data["mcps"] = mcps
+
+    try:
+        save_mcp_config_data(config_data)
+        logger.info("✅ 已写入默认 DooTask MCP 配置")
+    except MCPConfigError as exc:  # pragma: no cover - best effort config write
+        logger.error(f"❌ 写入 MCP 配置失败: {exc}")
 
 
 class ModelListError(Exception):

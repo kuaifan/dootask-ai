@@ -9,6 +9,7 @@ from fastapi.concurrency import asynccontextmanager
 
 # 本地模块导入
 from helper.redis import RedisManager
+from helper.models import ensure_dootask_mcp_config
 
 # 日志配置
 logger = logging.getLogger("ai")
@@ -23,7 +24,10 @@ async def check_mcp_health(app: FastAPI) -> None:
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(MCP_HEALTH_URL, timeout=3)
-            app.state.dootask_mcp = response.json().get("status") == "ok"
+            is_ok = response.json().get("status") == "ok"
+            app.state.dootask_mcp = is_ok
+            if is_ok:
+                ensure_dootask_mcp_config(enabled=True)
     except Exception as exc:  # pragma: no cover - best effort external check
         app.state.dootask_mcp = False
         logger.error(f"❌ 检测 MCP 失败: {MCP_HEALTH_URL} - 错误: {exc}")
