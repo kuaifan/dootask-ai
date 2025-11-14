@@ -9,12 +9,12 @@ from fastapi.concurrency import asynccontextmanager
 
 # 本地模块导入
 from helper.redis import RedisManager
-from helper.models import ensure_dootask_mcp_config
+from helper.mcp import ensure_dootask_mcp_config
 from helper.config import MCP_HEALTH_URL, MCP_CHECK_INTERVAL
 
 # 日志配置
 logger = logging.getLogger("ai")
-
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 async def check_mcp_health(app: FastAPI) -> None:
     """检查 MCP 服务的健康状态并将结果写入 app.state.mcp。"""

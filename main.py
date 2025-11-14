@@ -15,18 +15,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse, FileResponse
 from langchain.agents import create_agent
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, AIMessageChunk
-from langchain_mcp_adapters.client import MultiServerMCPClient
 
 # 本地模块导入
 from helper.config import SERVER_PORT, CLEAR_COMMANDS, STREAM_TIMEOUT, UI_DIST_PATH
 from helper.invoke import parse_context, build_invoke_stream_key
 from helper.lifespan import lifespan_context
 from helper.models import (
-    MCPConfigError,
     ModelListError,
     get_models_list,
-    load_mcp_config_data,
-    save_mcp_config_data,
 )
 from helper.redis import handle_context_limits
 from helper.request import RequestClient
@@ -43,6 +39,12 @@ from helper.utils import (
     replace_think_content,
     remove_reasoning_content,
     process_html_content
+)
+from helper.mcp import (
+    MCPConfigError,
+    load_mcp_config_data,
+    save_mcp_config_data,
+    load_mcp_tools_for_model,
 )
 
 # 日志配置
@@ -268,20 +270,13 @@ async def stream(msg_id: str, stream_key: str, host: str = Header("", alias="Hos
             finished_stream(),
             media_type='text/event-stream'
         )
-    tools = []
-    if app.state.dootask_mcp:
-        client = MultiServerMCPClient(
-            {
-                "dootask-task": {
-                    "url": f"{scheme}://{host}/apps/mcp_server/mcp",
-                    "transport": "streamable_http",
-                    "headers": {
-                        "token": data.get("msg_user_token","unknown")
-                    },
-                }
-            }
-        )
-        tools = await client.get_tools()
+    tools = await load_mcp_tools_for_model(
+        data.get("model_name", ""),
+        dootask_available=bool(getattr(app.state, "dootask_mcp", False)),
+        host=host,
+        scheme=scheme,
+        token_candidates=[data.get("msg_user_token"), data.get("token")],
+    )
     async def stream_generate(msg_id, msg_key, data, redis_manager):
         """
         流式生成响应
@@ -646,20 +641,14 @@ async def invoke_stream(request: Request, stream_key: str):
             streaming=True,
         )
         host = request.headers.get("Host")
-        tools = []
-        if app.state.dootask_mcp:
-            client = MultiServerMCPClient(
-                {
-                    "dootask-task": {
-                        "url": f"https://{host}/apps/mcp_server/mcp",
-                        "transport": "streamable_http",
-                        "headers": {
-                            "token": data.get("user_token","unknown")
-                        },
-                    }
-                }
-            )
-            tools = await client.get_tools()
+        scheme = request.headers.get("X-Forwarded-Proto") or request.url.scheme
+        tools = await load_mcp_tools_for_model(
+            data.get("model_name", ""),
+            dootask_available=bool(getattr(app.state, "dootask_mcp", False)),
+            host=host,
+            scheme=scheme,
+            token_candidates=[data.get("user_token"), data.get("token")],
+        )
         agent = create_agent(model, tools)
 
     except Exception as exc:
