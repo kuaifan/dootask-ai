@@ -17,6 +17,7 @@ import { Switch } from "@/components/ui/switch"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
 import type { MCPConfig, SupportedModel } from "@/data/mcp-config"
+import { createMcpId } from "@/data/mcp-config"
 import type { AIBotItem } from "@/data/aibots"
 import { useI18n } from "@/lib/i18n-context"
 
@@ -120,7 +121,9 @@ export const MCPEditorSheet = ({
     if (!validateConfig(config)) {
       return
     }
+    const id = mcp?.id ?? createMcpId()
     onSave({
+      id,
       name: name.trim(),
       config,
       supportedModels,

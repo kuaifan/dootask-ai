@@ -19,7 +19,7 @@ import { MCPEditorSheet } from "@/components/aibot/MCPEditorSheet"
 import type { AIBotItem, AIBotKey } from "@/data/aibots"
 import { createLocalizedAIBotList } from "@/data/aibots"
 import { getAISystemConfig, type SystemConfig } from "@/data/aibot-config"
-import type { MCPConfig } from "@/data/mcp-config"
+import { isSystemDooTaskMcp, type MCPConfig } from "@/data/mcp-config"
 import { mergeFields, parseModelNames } from "@/lib/aibot"
 import type { GeneratedField } from "@/lib/aibot"
 import { useI18n } from "@/lib/i18n-context"
@@ -56,11 +56,6 @@ const fieldMapFactory = (
 }
 
 const emptyState = {} as SettingsState
-const DOOTASK_MCP_NAME = "DooTask MCP"
-
-const isSystemDooTaskMcp = (mcp: MCPConfig) =>
-  Boolean(mcp.isSystem && (mcp.name === DOOTASK_MCP_NAME || mcp.name === "DooTask"))
-
 const resolveErrorMessage = (error: unknown, fallback: string) => {
   if (error && typeof error === "object") {
     if ("msg" in error && error.msg) {
@@ -447,7 +442,7 @@ function App() {
     setMcpEditorOpen(true)
   }
 
-  const handleDeleteMcp = async (name: string) => {
+  const handleDeleteMcp = async (mcp: MCPConfig) => {
     if (!isAdmin) {
       messageError(t("errors.adminOnly"))
       return
@@ -456,7 +451,7 @@ function App() {
       return
     }
     try {
-      const newMcps = await deleteMCPConfig(name, mcps)
+      const newMcps = await deleteMCPConfig(mcp.id, mcps)
       setMcps(newMcps)
       messageSuccess(t("success.save"))
     } catch (error) {

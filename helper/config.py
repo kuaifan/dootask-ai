@@ -20,6 +20,7 @@ STREAM_TIMEOUT = 300
 # MCP 配置文件路径及默认名称
 MCP_CONFIG_PATH = BASE_DIR / "mcp-config.json"
 DOOTASK_MCP_NAME = "DooTask MCP"
+DOOTASK_MCP_ID = "dootask-mcp"
 
 # 默认模型列表
 DEFAULT_MODELS = {

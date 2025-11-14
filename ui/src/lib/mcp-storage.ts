@@ -1,4 +1,24 @@
-import type { MCPConfig, MCPConfigList } from "@/data/mcp-config"
+import {
+  type MCPConfig,
+  type MCPConfigList,
+  createMcpId,
+  DOOTASK_MCP_ID,
+  isSystemDooTaskMcp,
+} from "@/data/mcp-config"
+
+const normalizeMcpConfig = (mcp: Partial<MCPConfig>): MCPConfig => {
+  const normalizedId = isSystemDooTaskMcp(mcp) ? DOOTASK_MCP_ID : mcp.id ?? createMcpId()
+  return {
+    id: normalizedId,
+    name: typeof mcp.name === "string" ? mcp.name : "",
+    config: typeof mcp.config === "string" ? mcp.config : "",
+    supportedModels: Array.isArray(mcp.supportedModels) ? mcp.supportedModels : [],
+    enabled: mcp.enabled ?? true,
+    isSystem: mcp.isSystem,
+  }
+}
+
+const ensureMcpIds = (mcps: Partial<MCPConfig>[] = []) => mcps.map((mcp) => normalizeMcpConfig(mcp))
 
 /**
  * 从本地文件加载MCP配置列表
@@ -13,7 +33,7 @@ export const loadMCPConfigs = async (): Promise<MCPConfig[]> => {
       throw new Error(`Failed to load MCP configs: ${response.statusText}`)
     }
     const data: MCPConfigList = await response.json()
-    return data.mcps || []
+    return ensureMcpIds(data.mcps)
   } catch (error) {
     console.error("Error loading MCP configs:", error)
     return []
@@ -45,16 +65,17 @@ export const saveMCPConfigs = async (mcps: MCPConfig[]): Promise<void> => {
  * 添加或更新MCP配置
  */
 export const saveMCPConfig = async (mcp: MCPConfig, existingMcps: MCPConfig[]): Promise<MCPConfig[]> => {
-  const index = existingMcps.findIndex((m) => m.name === mcp.name)
+  const target = mcp.id ? mcp : normalizeMcpConfig(mcp)
+  const index = existingMcps.findIndex((m) => m.id === target.id)
   let newMcps: MCPConfig[]
 
   if (index >= 0) {
     // 更新现有配置
     newMcps = [...existingMcps]
-    newMcps[index] = mcp
+    newMcps[index] = target
   } else {
     // 添加新配置
-    newMcps = [...existingMcps, mcp]
+    newMcps = [...existingMcps, target]
   }
 
   await saveMCPConfigs(newMcps)
@@ -64,8 +85,8 @@ export const saveMCPConfig = async (mcp: MCPConfig, existingMcps: MCPConfig[]): 
 /**
  * 删除MCP配置
  */
-export const deleteMCPConfig = async (name: string, existingMcps: MCPConfig[]): Promise<MCPConfig[]> => {
-  const newMcps = existingMcps.filter((m) => m.name !== name)
+export const deleteMCPConfig = async (id: string, existingMcps: MCPConfig[]): Promise<MCPConfig[]> => {
+  const newMcps = existingMcps.filter((m) => m.id !== id)
   await saveMCPConfigs(newMcps)
   return newMcps
 }

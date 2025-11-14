@@ -9,7 +9,7 @@ export interface MCPListCardProps {
   mcps: MCPConfig[]
   bots: AIBotItem[]
   onEdit: (mcp: MCPConfig) => void
-  onDelete: (name: string) => void
+  onDelete: (mcp: MCPConfig) => void
   onAdd: () => void
 }
 
@@ -45,7 +45,7 @@ export const MCPListCard = ({
           <div className="space-y-3">
             {mcps.map((mcp) => (
               <div
-                key={mcp.name}
+                key={mcp.id}
                 className="flex items-start justify-between rounded-lg border p-4 hover:bg-muted/50 transition-colors"
               >
                 <div className="flex-1 space-y-2">
@@ -86,7 +86,7 @@ export const MCPListCard = ({
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => onDelete(mcp.name)}
+                      onClick={() => onDelete(mcp)}
                     >
                       {t("mcp.delete")}
                     </Button>

@@ -6,7 +6,7 @@ from typing import Dict, List, Optional, TypedDict
 
 import httpx
 
-from helper.config import DOOTASK_MCP_NAME, MCP_CONFIG_PATH, DEFAULT_MODELS
+from helper.config import DOOTASK_MCP_ID, DOOTASK_MCP_NAME, MCP_CONFIG_PATH, DEFAULT_MODELS
 
 logger = logging.getLogger("ai")
 
@@ -30,6 +30,25 @@ def _normalize_mcp_config(data: Dict[str, object]) -> Dict[str, object]:
     mcps = data.get("mcps")
     if not isinstance(mcps, list):
         data["mcps"] = []
+        return data
+
+    normalized_mcps: List[Dict[str, object]] = []
+
+    for item in mcps:
+        if not isinstance(item, dict):
+            continue
+
+        normalized = dict(item)
+        is_system = bool(normalized.get("isSystem"))
+        if is_system:
+            normalized["id"] = DOOTASK_MCP_ID
+
+        if not isinstance(normalized.get("supportedModels"), list):
+            normalized["supportedModels"] = []
+
+        normalized_mcps.append(normalized)
+
+    data["mcps"] = normalized_mcps
     return data
 
 
@@ -79,10 +98,14 @@ def ensure_dootask_mcp_config(enabled: bool) -> None:
     config_data = load_mcp_config_data(fallback_empty=True)
     mcps = config_data.get("mcps") or []
 
-    if any(mcp.get("name") == DOOTASK_MCP_NAME for mcp in mcps):
+    if any(
+        isinstance(mcp, dict) and mcp.get("id") == DOOTASK_MCP_ID
+        for mcp in mcps
+    ):
         return
 
     default_config = {
+        "id": DOOTASK_MCP_ID,
         "name": DOOTASK_MCP_NAME,
         "config": "{}",
         "supportedModels": _collect_supported_mcp_models(),
