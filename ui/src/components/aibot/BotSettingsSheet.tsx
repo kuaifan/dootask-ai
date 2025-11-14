@@ -395,6 +395,9 @@ export const BotSettingsSheet = ({
                             </Button>
                           </div>
                           <div className="flex items-center gap-3">
+                            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                              {t("sheet.back")}
+                            </Button>
                             <Button
                               type="button"
                               onClick={() => onSubmit(bot.value)}
