@@ -57,7 +57,7 @@ export const MCPListCard = ({
                   </div>
                   {mcp.supportedModels.length > 0 && (
                     <div className="flex flex-wrap gap-1.5">
-                      {mcp.supportedModels.slice(0, 2).map((model) => (
+                      {mcp.supportedModels.slice(0, 3).map((model) => (
                         <Badge
                           key={model.id}
                           variant="secondary"
@@ -66,9 +66,9 @@ export const MCPListCard = ({
                           {model.name}
                         </Badge>
                       ))}
-                      {mcp.supportedModels.length > 2 && (
+                      {mcp.supportedModels.length > 3 && (
                         <Badge variant="secondary" className="text-xs">
-                          +{mcp.supportedModels.length - 2}
+                          +{mcp.supportedModels.length - 3}
                         </Badge>
                       )}
                     </div>
