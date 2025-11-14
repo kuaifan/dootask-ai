@@ -17,10 +17,21 @@ CLEAR_COMMANDS = [":clear", ":reset", ":restart", ":new", ":清空上下文", ":
 # 流式响应超时时间
 STREAM_TIMEOUT = 300
 
+# MCP 服务器相关配置
+MCP_SERVER_URL = "http://nginx/apps/mcp_server"
+MCP_STREAM_URL = MCP_SERVER_URL + "/mcp"
+MCP_HEALTH_URL = MCP_SERVER_URL + "/healthz"
+MCP_CHECK_INTERVAL = 60  # 检查间隔，单位秒
+
 # MCP 配置文件路径及默认名称
 MCP_CONFIG_PATH = BASE_DIR / "config" / "mcp-config.json"
 DOOTASK_MCP_NAME = "DooTask MCP"
 DOOTASK_MCP_ID = "dootask-mcp"
+
+# LangChain 思考标记正则
+THINK_START_PATTERN = re.compile(r'<think>\s*')
+THINK_END_PATTERN = re.compile(r'\s*</think>')
+REASONING_PATTERN = re.compile(r'::: reasoning\n.*?:::', re.DOTALL)
 
 # 默认模型列表
 DEFAULT_MODELS = {
@@ -143,12 +154,3 @@ CONTEXT_LIMITS = {
         "default": 128000
     }
 }
-
-# MCP 健康检查相关配置
-MCP_HEALTH_URL = "http://nginx/apps/mcp_server/healthz"
-MCP_CHECK_INTERVAL = 60  # 检查间隔，单位秒
-
-# LangChain 思考标记正则
-THINK_START_PATTERN = re.compile(r'<think>\s*')
-THINK_END_PATTERN = re.compile(r'\s*</think>')
-REASONING_PATTERN = re.compile(r'::: reasoning\n.*?:::', re.DOTALL)

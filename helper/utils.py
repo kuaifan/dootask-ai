@@ -282,11 +282,24 @@ def message_to_dict(message):
 
 # 从字典格式转换为消息对象
 def dict_to_message(d):
-    if d.get("type") == "human":
-        return HumanMessage(content=d.get("content"))
-    elif d.get("type") == "ai":
-        return AIMessage(content=d.get("content"))
-    elif d.get("type") == "system":
-        return SystemMessage(content=d.get("content"))
-    else:
-        raise TypeError("Unknown message type")
+    """
+    将遗留的元组/列表或字典表示转换回LangChain消息。
+    """
+    msg_type = None
+    content = None
+
+    if isinstance(d, dict):
+        msg_type = d.get("type") or d.get("role")
+        content = d.get("content")
+    elif isinstance(d, (list, tuple)) and len(d) >= 2:
+        # 旧版本将消息存储为（角色、内容）
+        msg_type, content = d[0], d[1]
+
+    if msg_type == "human" or msg_type == "user":
+        return HumanMessage(content=content)
+    if msg_type == "ai" or msg_type == "assistant":
+        return AIMessage(content=content)
+    if msg_type == "system":
+        return SystemMessage(content=content)
+
+    raise TypeError(f"Unknown message type: {msg_type}")

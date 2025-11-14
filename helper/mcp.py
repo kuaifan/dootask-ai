@@ -4,7 +4,7 @@ from typing import Dict, List, Optional
 
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
-from helper.config import DOOTASK_MCP_ID, DOOTASK_MCP_NAME, MCP_CONFIG_PATH, DEFAULT_MODELS
+from helper.config import DOOTASK_MCP_ID, DOOTASK_MCP_NAME, MCP_CONFIG_PATH, MCP_STREAM_URL, DEFAULT_MODELS
 
 logger = logging.getLogger("ai")
 
@@ -139,16 +139,10 @@ def _pick_token(token_candidates: List[Optional[str]]) -> str:
 
 
 def _build_dootask_mcp_config(
-    host: Optional[str],
-    scheme: Optional[str],
     token: str,
 ) -> Optional[Dict[str, object]]:
-    if not host:
-        logger.warning("Skipping DooTask MCP tools because host header is missing")
-        return None
-    clean_scheme = (scheme or "https").split("://")[0] or "https"
     return {
-        "url": f"{clean_scheme}://{host}/apps/mcp_server/mcp",
+        "url": MCP_STREAM_URL,
         "transport": "streamable_http",
         "headers": {
             "token": token or "unknown"
@@ -185,8 +179,6 @@ async def load_mcp_tools_for_model(
     model_name: str,
     *,
     dootask_available: bool,
-    host: Optional[str],
-    scheme: Optional[str],
     token_candidates: List[Optional[str]],
 ) -> List[object]:
     """根据配置文件加载与当前模型匹配的 MCP 工具列表。"""
@@ -222,7 +214,7 @@ async def load_mcp_tools_for_model(
         if is_dootask:
             if not dootask_available:
                 continue
-            config = _build_dootask_mcp_config(host, scheme, token_value)
+            config = _build_dootask_mcp_config(token_value)
         else:
             config = _load_custom_mcp_config(mcp, server_key)
 

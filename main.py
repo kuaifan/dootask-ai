@@ -231,7 +231,7 @@ async def chat(request: Request):
     return JSONResponse(content={"code": 200, "data": {"id": send_id, "key": stream_key}}, status_code=200)
 
 @app.get('/stream/{msg_id}/{stream_key}')
-async def stream(msg_id: str, stream_key: str, host: str = Header("", alias="Host"), scheme: str = Header("http", alias="scheme")):
+async def stream(msg_id: str, stream_key: str):
     """校验 msg_id/stream_key 并通过 SSE 发送缓存的对话输出。"""
     if not stream_key:
         async def error_stream():
@@ -273,8 +273,6 @@ async def stream(msg_id: str, stream_key: str, host: str = Header("", alias="Hos
     tools = await load_mcp_tools_for_model(
         data.get("model_name", ""),
         dootask_available=bool(getattr(app.state, "dootask_mcp", False)),
-        host=host,
-        scheme=scheme,
         token_candidates=[data.get("msg_user_token"), data.get("token")],
     )
     async def stream_generate(msg_id, msg_key, data, redis_manager):
@@ -640,13 +638,9 @@ async def invoke_stream(request: Request, stream_key: str):
             thinking=data["thinking"],
             streaming=True,
         )
-        host = request.headers.get("Host")
-        scheme = request.headers.get("X-Forwarded-Proto") or request.url.scheme
         tools = await load_mcp_tools_for_model(
             data.get("model_name", ""),
             dootask_available=bool(getattr(app.state, "dootask_mcp", False)),
-            host=host,
-            scheme=scheme,
             token_candidates=[data.get("user_token"), data.get("token")],
         )
         agent = create_agent(model, tools)

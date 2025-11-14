@@ -119,16 +119,14 @@ class RedisManager:
 
     async def set_context(self, key, value, model_type=None, model_name=None, context_limit=None):
         """设置上下文到 Redis，根据模型限制截断内容"""
-        # 确保 value 是列表格式
         if not isinstance(value, list):
-            raise ValueError("Context must be a list of tuples")
-        # 保存到 Redis
+            raise ValueError("Context must be a list")
         await self.client.set(self._make_key("context", key), json.dumps(value))
 
     async def append_context(self, key, role, content, model_type=None, model_name=None, context_limit=None):
         """添加新的上下文消息"""
         context = await self.get_context(key)
-        context.append((role, content))
+        context.append({"type": role, "content": content})
         await self.set_context(key, context, model_type, model_name, context_limit)
 
     async def extend_contexts(self, key, contents, model_type=None, model_name=None, context_limit=None):
