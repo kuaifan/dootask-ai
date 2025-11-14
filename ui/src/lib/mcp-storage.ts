@@ -5,7 +5,7 @@ import type { MCPConfig, MCPConfigList } from "@/data/mcp-config"
  */
 export const loadMCPConfigs = async (): Promise<MCPConfig[]> => {
   try {
-    const response = await fetch(`/mcp/config`)
+    const response = await fetch(`/ai/mcp/config`)
     if (!response.ok) {
       if (response.status === 404) {
         return []
@@ -25,7 +25,7 @@ export const loadMCPConfigs = async (): Promise<MCPConfig[]> => {
  */
 export const saveMCPConfigs = async (mcps: MCPConfig[]): Promise<void> => {
   try {
-    const response = await fetch(`/mcp/config`, {
+    const response = await fetch(`/ai/mcp/config`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

@@ -18,7 +18,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, AIMe
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
 # 本地模块导入
-from helper.config import SERVER_PORT, CLEAR_COMMANDS, STREAM_TIMEOUT, END_CONVERSATION_MARK
+from helper.config import SERVER_PORT, CLEAR_COMMANDS, STREAM_TIMEOUT, UI_DIST_PATH
 from helper.invoke import parse_context, build_invoke_stream_key
 from helper.lifespan import lifespan_context
 from helper.models import (
@@ -54,9 +54,6 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger("ai")
-
-# 常量定义
-UI_DIST_PATH = Path(__file__).resolve().parent / "static" / "ui"
 
 # 工具函数
 def ui_assets_available() -> bool:

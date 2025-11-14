@@ -10,13 +10,10 @@ from fastapi.concurrency import asynccontextmanager
 # 本地模块导入
 from helper.redis import RedisManager
 from helper.models import ensure_dootask_mcp_config
+from helper.config import MCP_HEALTH_URL, MCP_CHECK_INTERVAL
 
 # 日志配置
 logger = logging.getLogger("ai")
-
-# 常量定义
-MCP_HEALTH_URL = "http://nginx/apps/mcp_server/healthz"
-MCP_CHECK_INTERVAL = 60  # 秒
 
 
 async def check_mcp_health(app: FastAPI) -> None:

@@ -12,16 +12,12 @@ from langchain_community.chat_models import (
 from .deepseek import DeepseekChatOpenAI
 from .request import RequestClient
 from .redis import RedisManager
+from .config import THINK_START_PATTERN, THINK_END_PATTERN, REASONING_PATTERN
 import os
 import time
 import json
 import re
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
-
-# 预编译正则表达式
-_THINK_START_PATTERN = re.compile(r'<think>\s*')
-_THINK_END_PATTERN = re.compile(r'\s*</think>')
-_REASONING_PATTERN = re.compile(r'::: reasoning\n.*?:::', re.DOTALL)
 
 def get_model_instance(model_type, model_name, api_key, **kwargs):
     """根据模型类型返回对应的模型实例"""
@@ -198,14 +194,14 @@ def json_empty():
 def replace_think_content(text):
     # 将 <think>内容</think> 替换为 ::: reasoning 内容 :::
     if '<think' in text or '</think' in text:
-        text = _THINK_START_PATTERN.sub('::: reasoning\n', text)
-        text = _THINK_END_PATTERN.sub('\n:::', text)
+        text = THINK_START_PATTERN.sub('::: reasoning\n', text)
+        text = THINK_END_PATTERN.sub('\n:::', text)
     return text
 
 def remove_reasoning_content(text):
     # 将 ::: reasoning 内容 ::: 去除
     if "::: reasoning\n" in text:
-        text = _REASONING_PATTERN.sub('', text)
+        text = REASONING_PATTERN.sub('', text)
     return text
 
 def process_html_content(text):

@@ -5,54 +5,11 @@ import re
 import tiktoken
 from typing import List, Tuple
 
+from helper.config import CONTEXT_LIMITS
+
 # 提前加载所需的编码
 tiktoken.get_encoding("o200k_base")
 tiktoken.get_encoding("cl100k_base")
-
-# 定义模型的上下文限制（token数）
-CONTEXT_LIMITS = {
-    "openai": {
-        "gpt-4": 8192,
-        "gpt-4-turbo": 128000,
-        "gpt-4o": 128000,
-        "gpt-4o-mini": 16384,
-        "gpt-3.5-turbo": 4096,
-        "gpt-3.5-turbo-16k": 16384,
-        "gpt-3.5-turbo-0125": 4096,
-        "gpt-3.5-turbo-1106": 4096,
-        "default": 4096
-    },
-    "claude": {
-        "claude-3-5-sonnet-latest": 200000,
-        "claude-3-5-haiku-latest": 200000,
-        "claude-3-5-opus-latest": 200000,
-        "claude-2.1": 100000,
-        "default": 200000
-    },
-    "deepseek": {
-        "deepseek-chat": 32768,
-        "deepseek-reasoner": 32768,
-        "default": 32768
-    },
-    "gemini": {
-        "gemini-1.5-flash": 1000000,
-        "gemini-1.5-pro": 1000000,
-        "default": 1000000
-    },
-    "zhipu": {
-        "glm-4": 128000,
-        "glm-4-long": 128000,
-        "default": 128000
-    },
-    "qwen": {
-        "qwen-turbo": 32000,
-        "default": 32000
-    },
-    "grok": {
-        "grok-2": 128000,
-        "default": 128000
-    }
-}
 
 def count_tokens(text: str, model_type: str, model_name: str) -> int:
     """计算文本的token数量"""

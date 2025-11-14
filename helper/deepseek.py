@@ -12,14 +12,12 @@ from langchain_core.callbacks import CallbackManagerForLLMRun
 
 from langchain_openai import ChatOpenAI
 
-DEFAULT_API_BASE = "https://api.deepseek.com/v1"
-
 logger = logging.getLogger(__name__)
 
 class DeepseekChatOpenAI(ChatOpenAI):
     def __init__(self, **params: Dict[str, Any]):
         if "base_url" not in params:
-            params["base_url"] = DEFAULT_API_BASE
+            params["base_url"] = "https://api.deepseek.com/v1"
         super().__init__(**params)
 
     async def _astream(
