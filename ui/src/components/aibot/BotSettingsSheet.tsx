@@ -331,6 +331,7 @@ export const BotSettingsSheet = ({
           side="right"
           className="flex w-full max-w-2xl sm:max-w-4xl lg:max-w-4xl flex-col gap-6 overflow-hidden"
           onEscapeKeyDown={(event) => event.preventDefault()}
+          onPointerDownOutside={(event) => event.preventDefault()}
         >
           <SheetHeader>
             <SheetTitle>{t("sheet.title")}</SheetTitle>
@@ -422,8 +423,9 @@ export const BotSettingsSheet = ({
       <Sheet open={isModelEditorOpen} onOpenChange={(next) => !next && handleCloseModelEditor()}>
         <SheetContent
           side="right"
-          className="flex w-full max-w-lg sm:max-w-2xl lg:max-w-2xl flex-col gap-0 overflow-hidden"
+          className="flex w-full max-w-xl sm:max-w-3xl lg:max-w-3xl flex-col gap-0 overflow-hidden"
           onEscapeKeyDown={(event) => event.preventDefault()}
+          onPointerDownOutside={(event) => event.preventDefault()}
         >
           <SheetHeader className="pb-6">
             <SheetTitle>{t("sheet.models.drawerTitle")}</SheetTitle>

@@ -84,7 +84,7 @@ export const MCPEditorSheet = ({
       JSON.parse(configText)
       setConfigError("")
       return true
-    } catch (error) {
+    } catch {
       setConfigError(t("mcp.configInvalid"))
       return false
     }
@@ -147,6 +147,7 @@ export const MCPEditorSheet = ({
         side="right"
         className="flex w-full max-w-2xl sm:max-w-4xl lg:max-w-4xl flex-col gap-6 overflow-hidden"
         onEscapeKeyDown={(event) => event.preventDefault()}
+        onPointerDownOutside={(event) => event.preventDefault()}
       >
         <SheetHeader>
           <SheetTitle>{mcp ? t("mcp.editTitle") : t("mcp.addTitle")}</SheetTitle>
