@@ -19,7 +19,7 @@ import { MCPEditorSheet } from "@/components/aibot/MCPEditorSheet"
 import type { AIBotItem, AIBotKey } from "@/data/aibots"
 import { createLocalizedAIBotList } from "@/data/aibots"
 import { getAISystemConfig, type SystemConfig } from "@/data/aibot-config"
-import { isSystemDooTaskMcp, type MCPConfig } from "@/data/mcp-config"
+import type { MCPConfig } from "@/data/mcp-config"
 import { mergeFields, parseModelNames } from "@/lib/aibot"
 import type { GeneratedField } from "@/lib/aibot"
 import { useI18n } from "@/lib/i18n-context"
@@ -461,21 +461,9 @@ function App() {
 
   const handleSaveMcp = async (mcp: MCPConfig) => {
     try {
-      // 如果是系统MCP（DooTask），更新app.state.dootask_mcp
-      if (isSystemDooTaskMcp(mcp)) {
-        // 只更新本地状态，不保存到文件
-        const newMcps = mcps.map(m =>
-          isSystemDooTaskMcp(m)
-            ? { ...m, supportedModels: mcp.supportedModels, enabled: mcp.enabled }
-            : m
-        )
-        setMcps(newMcps)
-        messageSuccess(t("success.save"))
-      } else {
-        const newMcps = await saveMCPConfig(mcp, mcps)
-        setMcps(newMcps)
-        messageSuccess(t("success.save"))
-      }
+      const newMcps = await saveMCPConfig(mcp, mcps)
+      setMcps(newMcps)
+      messageSuccess(t("success.save"))
     } catch (error) {
       messageError(resolveErrorMessage(error, t("errors.submitFailed")))
     }
