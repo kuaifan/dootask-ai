@@ -533,7 +533,6 @@ async def invoke_auth(request: Request, token: str = Header(..., alias="Authoriz
             params[key] = value
     
     context_messages = parse_context(params.get("context"))
-    logger.info(f"Context messages: {context_messages}")
     api_key = params.get('api_key')
     base_url = params.get('base_url')
     agency = params.get('agency')
