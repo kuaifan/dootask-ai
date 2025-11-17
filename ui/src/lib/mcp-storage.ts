@@ -65,8 +65,15 @@ export const saveMCPConfigs = async (mcps: MCPConfig[]): Promise<void> => {
  * 添加或更新MCP配置
  */
 export const saveMCPConfig = async (mcp: MCPConfig, existingMcps: MCPConfig[]): Promise<MCPConfig[]> => {
-  const target = mcp.id ? mcp : normalizeMcpConfig(mcp)
-  const index = existingMcps.findIndex((m) => m.id === target.id)
+  const normalizedTarget = normalizeMcpConfig(mcp)
+  const index = existingMcps.findIndex((existing) => existing.id === normalizedTarget.id)
+  const isSystemTarget = isSystemDooTaskMcp(normalizedTarget)
+  const target = isSystemTarget
+    ? {
+        ...(index >= 0 ? existingMcps[index] : normalizedTarget),
+        supportedModels: normalizedTarget.supportedModels,
+      }
+    : normalizedTarget
   let newMcps: MCPConfig[]
 
   if (index >= 0) {
