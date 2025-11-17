@@ -376,7 +376,7 @@ export const BotSettingsSheet = ({
                         </div>
                       </ScrollArea>
                       <SheetFooter className="gap-3 border-t pt-4">
-                        <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:justify-between sm:gap-4">
+                        <div className="flex flex-1 flex-wrap justify-between gap-4">
                           <div className="flex items-center gap-3">
                             <Button
                               type="button"
@@ -460,7 +460,7 @@ export const BotSettingsSheet = ({
             </ScrollArea>
           )}
           <SheetFooter className="gap-3 border-t pt-4">
-            <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:justify-between sm:gap-4">
+            <div className="flex flex-1 flex-wrap justify-between gap-4">
               <div className="flex items-center gap-3">
                 {modelEditor?.field.functions && (
                   <Button
