@@ -10,6 +10,7 @@ import {
   openDialogUserid,
   requestAPI,
   interceptBack,
+  getSafeArea,
 } from "@dootask/tools"
 
 import { BotCard } from "@/components/aibot/BotCard"
@@ -88,6 +89,7 @@ function App() {
   const [mcps, setMcps] = useState<MCPConfig[]>([])
   const [mcpEditorOpen, setMcpEditorOpen] = useState(false)
   const [editingMcp, setEditingMcp] = useState<MCPConfig | null>(null)
+  const [safeAreaReady, setSafeAreaReady] = useState(false)
 
   const settingsOpenRef = useRef(settingsOpen)
   const mcpEditorOpenRef = useRef(mcpEditorOpen)
@@ -110,6 +112,35 @@ function App() {
 
   useEffect(() => {
     applyTheme(getThemeFromSearch())
+  }, [])
+
+  useEffect(() => {
+    let mounted = true
+    const rootStyle = document.documentElement.style
+    const applySafeArea = async () => {
+      try {
+        const area = await getSafeArea()
+        rootStyle.setProperty("--safe-area-top", `${area?.top ?? 0}px`)
+        rootStyle.setProperty("--safe-area-bottom", `${area?.bottom ?? 0}px`)
+      } catch (error) {
+        console.error("Failed to apply safe area", error)
+      } finally {
+        if (mounted) {
+          setSafeAreaReady(true)
+        }
+      }
+    }
+
+    void applySafeArea()
+
+    const handleResize = () => {
+      void applySafeArea()
+    }
+    window.addEventListener("resize", handleResize)
+    return () => {
+      mounted = false
+      window.removeEventListener("resize", handleResize)
+    }
   }, [])
 
   useEffect(() => {
@@ -469,9 +500,17 @@ function App() {
     }
   }
 
+  if (!safeAreaReady) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center z-50 bg-background">
+        <div className="loading-indicator"></div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-background">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 p-6 sm:p-10">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 sm:px-10 pt-[calc(var(--safe-area-top)+1.5rem)] pb-[calc(var(--safe-area-bottom)+1.5rem)] sm:pt-[calc(var(--safe-area-top)+2.5rem)] sm:pb-[calc(var(--safe-area-bottom)+2.5rem)]">
         <header className="space-y-3">
           <h1 className="text-2xl font-semibold">{t("app.title")}</h1>
           <p className="text-sm text-muted-foreground">{t("app.description")}</p>

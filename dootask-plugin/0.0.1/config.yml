@@ -5,6 +5,7 @@ menu_items:
       zh: AI 助手
     url: "ai/?theme={system_theme}&lang={system_lang}"
     url_type: iframe
+    immersive: true
     capsule:
       visible: true
       top: 18
