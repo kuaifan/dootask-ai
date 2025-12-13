@@ -179,7 +179,7 @@ export const BotSettingsSheet = ({
                     <li key={`${item.value}|${item.label}`} className="leading-relaxed flex items-center justify-between">
                       <span className="font-medium">{item.label || item.value}</span>
                       {item.label && (
-                        <span className="text-muted-foreground pl-2 text-xs">{item.value}</span>
+                        <span className="text-muted-foreground pl-2 text-xs text-right">{item.value}</span>
                       )}
                     </li>
                   ))}
