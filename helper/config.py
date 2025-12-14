@@ -36,6 +36,7 @@ REASONING_PATTERN = re.compile(r'::: reasoning\n.*?:::', re.DOTALL)
 # 默认模型列表
 DEFAULT_MODELS = {
     "openai": [
+        {"id": "gpt-5.2", "name": "GPT-5.2", "support_mcp": True},
         {"id": "gpt-5.1-chat-latest", "name": "GPT-5.1 Chat", "support_mcp": True},
         {"id": "gpt-5.1-codex-mini", "name": "GPT-5.1 Codex mini", "support_mcp": True},
         {"id": "gpt-5.1-codex", "name": "GPT-5.1 Codex", "support_mcp": True},
@@ -62,6 +63,7 @@ DEFAULT_MODELS = {
         {"id": "gpt-3.5-turbo-1106", "name": "GPT-3.5 Turbo 1106", "support_mcp": False},
     ],
     "claude": [
+        {"id": "claude-opus-4-5 (thinking)", "name": "Claude Opus 4.5", "support_mcp": True},
         {"id": "claude-sonnet-4-5 (thinking)", "name": "Claude Sonnet 4.5", "support_mcp": True},
         {"id": "claude-haiku-4-5 (thinking)", "name": "Claude Haiku 4.5", "support_mcp": True},
         {"id": "claude-opus-4-1 (thinking)", "name": "Claude Opus 4.1", "support_mcp": True},
@@ -75,6 +77,7 @@ DEFAULT_MODELS = {
         {"id": "deepseek-reasoner", "name": "DeepSeek-V3.2-Reasoner", "support_mcp": True},
     ],
     "gemini": [
+        {"id": "gemini-3-pro-preview", "name": "Gemini 3 Preview", "support_mcp": True},
         {"id": "gemini-2.5-pro", "name": "Gemini 2.5 Pro", "support_mcp": True},
         {"id": "gemini-2.5-pro-tts", "name": "Gemini 2.5 Pro TTS", "support_mcp": True},
         {"id": "gemini-2.5-flash", "name": "Gemini 2.5 Flash", "support_mcp": True},
@@ -85,6 +88,8 @@ DEFAULT_MODELS = {
         {"id": "gemini-2.0-flash-lite", "name": "Gemini 2.0 Flash Lite", "support_mcp": False},
     ],
     "grok": [
+        {"id": "grok-4-1-fast-reasoning", "name": "Grok 4.1 Fast Reasoning", "support_mcp": True},
+        {"id": "grok-4-1-fast-non-reasoning", "name": "Grok 4.1 Fast", "support_mcp": True},
         {"id": "grok-code-fast-1", "name": "Grok Code Fast 1", "support_mcp": True},
         {"id": "grok-4-fast-reasoning", "name": "Grok 4 Fast Reasoning", "support_mcp": True},
         {"id": "grok-4-fast-non-reasoning", "name": "Grok 4 Fast", "support_mcp": True},

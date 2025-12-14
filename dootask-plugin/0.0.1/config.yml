@@ -10,3 +10,175 @@ menu_items:
       visible: true
       top: 18
       right: 18
+require_version:
+  version: ">= 1.4.81"
+  reason:
+    en: "Requires new API features"
+    zh: "需要新的API功能"
+hooks:
+  upgrade: |
+    # 更新新增的 AI 模型配置（写回 DooTask system/setting/aibot）
+    # 同时：将本次新增模型增量加入所有 MCP 的 supportedModels 白名单
+    #
+    # 依赖 hooks 环境注入：
+    # - ACTOR_TOKEN（操作者用户 token）
+
+    set -eu
+
+    # 统一日志前缀，便于在升级日志里检索
+    log() { echo "[dootask-ai][upgrade] $*"; }
+
+    # 1) 必要环境变量校验
+    ACTOR_TOKEN="${ACTOR_TOKEN:-}"
+    [ -n "$ACTOR_TOKEN" ] || exit 0
+
+    MAIN_VERSION="${MAIN_VERSION:-}"
+    if [ -z "$MAIN_VERSION" ]; then
+      log "skip: missing MAIN_VERSION"
+      exit 0
+    fi
+
+    # 2) 通过 DooTask API 读取当前 aibot 设置（全量），并在本地做“增量补齐”
+    API="http://nginx/api/system/setting/aibot"
+    TMP_SETTINGS="/tmp/dootask_ai_settings.$$.$RANDOM.json"
+    HTTP_CODE="$(curl -sS --connect-timeout 2 --max-time 5 \
+      -H "token: $ACTOR_TOKEN" \
+      -H "version: $MAIN_VERSION" \
+      -o "$TMP_SETTINGS" -w '%{http_code}' \
+      "$API?type=get&token=$ACTOR_TOKEN" 2>/dev/null || true)"
+    if [ "$HTTP_CODE" != "200" ] || [ ! -s "$TMP_SETTINGS" ]; then
+      log "fetch settings failed (http=$HTTP_CODE)"
+      rm -f "$TMP_SETTINGS" >/dev/null 2>&1 || true
+      exit 0
+    fi
+
+    # 3) 工具函数：检测/拼接模型行（避免覆盖用户自定义列表）
+    escape_re() { printf '%s' "$1" | sed -e 's/[][(){}.^$?+*|\\/]/\\&/g'; }
+    has_model() {
+      MODELS="$1"
+      ID="$2"
+      ESCAPED="$(escape_re "$ID")"
+      printf '%s\n' "$MODELS" | grep -E -q "^${ESCAPED}(\\||$)"
+    }
+    prepend_model() {
+      MODELS="$1"
+      LINE="$2"
+      if [ -n "$MODELS" ]; then
+        printf '%s\n%s' "$LINE" "$MODELS"
+      else
+        printf '%s' "$LINE"
+      fi
+    }
+    save_models() {
+      FILTER="$1"
+      FIELD="$2"
+      VALUE="$3"
+      # 仅保存单个字段（如 openai_models），避免覆盖该 filter 下的其它配置项
+      PAYLOAD="$(jq -n --arg token "$ACTOR_TOKEN" --arg models "$VALUE" --arg filter "$FILTER" --arg field "$FIELD" '
+        {type:"save", filter:$filter, token:$token} + {($field): $models}
+      ')"
+      TMP_SAVE="/tmp/dootask_ai_save.$$.$RANDOM.json"
+      SAVE_HTTP="$(curl -sS --connect-timeout 2 --max-time 5 \
+        -H "token: $ACTOR_TOKEN" \
+        -H "version: $MAIN_VERSION" \
+        -o "$TMP_SAVE" -w '%{http_code}' \
+        -H "Content-Type: application/json" -d "$PAYLOAD" \
+        "$API?token=$ACTOR_TOKEN" 2>/dev/null || true)"
+      SAVE_CODE="$(jq -r '.code // empty' "$TMP_SAVE" 2>/dev/null || true)"
+      SAVE_MSG="$(jq -r '.msg // .message // .error // empty' "$TMP_SAVE" 2>/dev/null || true)"
+      log "save $FILTER/$FIELD (http=$SAVE_HTTP code=${SAVE_CODE:-?} msg=${SAVE_MSG:-})"
+      rm -f "$TMP_SAVE" >/dev/null 2>&1 || true
+    }
+
+    # 4) 本版本新增模型：增量补齐到各自 provider 的 *_models 配置中
+    OPENAI_MODELS="$(jq -r '.data.openai_models // ""' "$TMP_SETTINGS" 2>/dev/null || true)"
+    NEW_OPENAI="$OPENAI_MODELS"
+    if ! has_model "$NEW_OPENAI" "gpt-5.2"; then
+      NEW_OPENAI="$(prepend_model "$NEW_OPENAI" "gpt-5.2|GPT-5.2")"
+      save_models "openai" "openai_models" "$NEW_OPENAI"
+    else
+      log "openai_models already has gpt-5.2"
+    fi
+
+    CLAUDE_MODELS="$(jq -r '.data.claude_models // ""' "$TMP_SETTINGS" 2>/dev/null || true)"
+    NEW_CLAUDE="$CLAUDE_MODELS"
+    if ! has_model "$NEW_CLAUDE" "claude-opus-4-5 (thinking)"; then
+      NEW_CLAUDE="$(prepend_model "$NEW_CLAUDE" "claude-opus-4-5 (thinking)|Claude Opus 4.5")"
+      save_models "claude" "claude_models" "$NEW_CLAUDE"
+    else
+      log "claude_models already has claude-opus-4-5 (thinking)"
+    fi
+
+    GEMINI_MODELS="$(jq -r '.data.gemini_models // ""' "$TMP_SETTINGS" 2>/dev/null || true)"
+    NEW_GEMINI="$GEMINI_MODELS"
+    if ! has_model "$NEW_GEMINI" "gemini-3-pro-preview"; then
+      NEW_GEMINI="$(prepend_model "$NEW_GEMINI" "gemini-3-pro-preview|Gemini 3 Preview")"
+      save_models "gemini" "gemini_models" "$NEW_GEMINI"
+    else
+      log "gemini_models already has gemini-3-pro-preview"
+    fi
+
+    GROK_MODELS="$(jq -r '.data.grok_models // ""' "$TMP_SETTINGS" 2>/dev/null || true)"
+    NEW_GROK="$GROK_MODELS"
+    if ! has_model "$NEW_GROK" "grok-4-1-fast-reasoning"; then
+      NEW_GROK="$(prepend_model "$NEW_GROK" "grok-4-1-fast-reasoning|Grok 4.1 Fast Reasoning")"
+    fi
+    if ! has_model "$NEW_GROK" "grok-4-1-fast-non-reasoning"; then
+      NEW_GROK="$(prepend_model "$NEW_GROK" "grok-4-1-fast-non-reasoning|Grok 4.1 Fast")"
+    fi
+    if [ "$NEW_GROK" != "$GROK_MODELS" ]; then
+      save_models "grok" "grok_models" "$NEW_GROK"
+    else
+      log "grok_models already has grok-4-1-*"
+    fi
+
+    # aibot 设置同步完成，清理临时文件
+    rm -f "$TMP_SETTINGS" >/dev/null 2>&1 || true
+
+    # 5) MCP 配置同步：给所有 MCP 的 supportedModels 白名单增量补齐本次新增模型
+    # 说明：supportedModels 为空数组通常表示“支持全部模型”，这里保持不动；仅对显式白名单做增量补齐。
+    MCP_URL="http://nginx/ai/mcp/config"
+    TMP_MCP="/tmp/dootask_ai_mcp.$$.$RANDOM.json"
+    MCP_HTTP="$(curl -sS --connect-timeout 2 --max-time 5 -o "$TMP_MCP" -w '%{http_code}' "$MCP_URL" 2>/dev/null || true)"
+    if [ "$MCP_HTTP" != "200" ] || [ ! -s "$TMP_MCP" ]; then
+      log "mcp fetch skipped (http=$MCP_HTTP)"
+      rm -f "$TMP_MCP" >/dev/null 2>&1 || true
+      exit 0
+    fi
+
+    # 本次新增模型列表（写入 MCP 的 supportedModels）
+    ADD_MODELS='[{"id":"gpt-5.2","name":"GPT-5.2"},{"id":"claude-opus-4-5 (thinking)","name":"Claude Opus 4.5"},{"id":"gemini-3-pro-preview","name":"Gemini 3 Preview"},{"id":"grok-4-1-fast-reasoning","name":"Grok 4.1 Fast Reasoning"},{"id":"grok-4-1-fast-non-reasoning","name":"Grok 4.1 Fast"}]'
+
+    # 归一化 supportedModels（兼容 string/object），并对每个 MCP 做 unique_by(id) 合并
+    UPDATED_MCP="$(
+      jq --argjson add "$ADD_MODELS" '
+        def norm_models:
+          map(
+            if type == "string" then {id: ., name: .}
+            elif type == "object" then {id: (.id|tostring), name: ((.name // .id)|tostring)}
+            else empty
+            end
+          );
+        .mcps = ((.mcps // []) | map(
+          if (.supportedModels // null | type) != "array" then .
+          elif (.supportedModels | length) == 0 then .
+          else .supportedModels = ((.supportedModels | norm_models) + $add | unique_by(.id))
+          end
+        ))
+      ' "$TMP_MCP" 2>/dev/null || true
+    )"
+    if [ -z "$UPDATED_MCP" ]; then
+      log "mcp update skipped: jq failed"
+      rm -f "$TMP_MCP" >/dev/null 2>&1 || true
+      exit 0
+    fi
+
+    # 回写 mcp-config.json（通过 dootask-ai 服务的 /mcp/config 接口）
+    TMP_MCP_SAVE="/tmp/dootask_ai_mcp_save.$$.$RANDOM.json"
+    MCP_SAVE_HTTP="$(curl -sS --connect-timeout 2 --max-time 5 -o "$TMP_MCP_SAVE" -w '%{http_code}' -H "Content-Type: application/json" -d "$UPDATED_MCP" "$MCP_URL" 2>/dev/null || true)"
+    MCP_SAVE_OK="$(jq -r '.success // empty' "$TMP_MCP_SAVE" 2>/dev/null || true)"
+    log "mcp save (http=$MCP_SAVE_HTTP success=${MCP_SAVE_OK:-?})"
+
+    # MCP 同步结束，清理临时文件
+    rm -f "$TMP_MCP" "$TMP_MCP_SAVE" >/dev/null 2>&1 || true
+    log "done"
