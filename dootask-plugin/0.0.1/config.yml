@@ -138,13 +138,25 @@ hooks:
     # 5) MCP 配置同步：给所有 MCP 的 supportedModels 白名单增量补齐本次新增模型
     # 说明：supportedModels 为空数组通常表示“支持全部模型”，这里保持不动；仅对显式白名单做增量补齐。
     MCP_URL="http://nginx/ai/mcp/config"
+    MCP_RETRY_TIMES=20
+    MCP_RETRY_SLEEP=10
+
     TMP_MCP="/tmp/dootask_ai_mcp.$$.$RANDOM.json"
-    MCP_HTTP="$(curl -sS --connect-timeout 2 --max-time 5 -o "$TMP_MCP" -w '%{http_code}' "$MCP_URL" 2>/dev/null || true)"
-    if [ "$MCP_HTTP" != "200" ] || [ ! -s "$TMP_MCP" ]; then
-      log "mcp fetch skipped (http=$MCP_HTTP)"
+    MCP_TRY=1
+    while :; do
+      MCP_HTTP="$(curl -sS --connect-timeout 2 --max-time 5 -o "$TMP_MCP" -w '%{http_code}' "$MCP_URL" 2>/dev/null || true)"
+      if [ "$MCP_HTTP" = "200" ] && [ -s "$TMP_MCP" ]; then
+        break
+      fi
       rm -f "$TMP_MCP" >/dev/null 2>&1 || true
-      exit 0
-    fi
+      if [ "$MCP_TRY" -ge "$MCP_RETRY_TIMES" ]; then
+        log "mcp fetch failed (tries=$MCP_RETRY_TIMES http=$MCP_HTTP)"
+        exit 1
+      fi
+      log "mcp fetch retry ($MCP_TRY/$MCP_RETRY_TIMES http=$MCP_HTTP), sleep ${MCP_RETRY_SLEEP}s"
+      MCP_TRY="$((MCP_TRY + 1))"
+      sleep "$MCP_RETRY_SLEEP"
+    done
 
     # 本次新增模型列表（写入 MCP 的 supportedModels）
     ADD_MODELS='[{"id":"gpt-5.2","name":"GPT-5.2"},{"id":"claude-opus-4-5 (thinking)","name":"Claude Opus 4.5"},{"id":"gemini-3-pro-preview","name":"Gemini 3 Preview"},{"id":"grok-4-1-fast-reasoning","name":"Grok 4.1 Fast Reasoning"},{"id":"grok-4-1-fast-non-reasoning","name":"Grok 4.1 Fast"}]'
@@ -175,8 +187,25 @@ hooks:
 
     # 回写 mcp-config.json（通过 dootask-ai 服务的 /mcp/config 接口）
     TMP_MCP_SAVE="/tmp/dootask_ai_mcp_save.$$.$RANDOM.json"
-    MCP_SAVE_HTTP="$(curl -sS --connect-timeout 2 --max-time 5 -o "$TMP_MCP_SAVE" -w '%{http_code}' -H "Content-Type: application/json" -d "$UPDATED_MCP" "$MCP_URL" 2>/dev/null || true)"
-    MCP_SAVE_OK="$(jq -r '.success // empty' "$TMP_MCP_SAVE" 2>/dev/null || true)"
+    MCP_TRY=1
+    MCP_SAVE_HTTP=""
+    MCP_SAVE_OK=""
+    while :; do
+      MCP_SAVE_HTTP="$(curl -sS --connect-timeout 2 --max-time 5 -o "$TMP_MCP_SAVE" -w '%{http_code}' -H "Content-Type: application/json" -d "$UPDATED_MCP" "$MCP_URL" 2>/dev/null || true)"
+      MCP_SAVE_OK="$(jq -r '.success // empty' "$TMP_MCP_SAVE" 2>/dev/null || true)"
+      if [ "$MCP_SAVE_HTTP" = "200" ] && [ "$MCP_SAVE_OK" = "true" ]; then
+        break
+      fi
+      rm -f "$TMP_MCP_SAVE" >/dev/null 2>&1 || true
+      if [ "$MCP_TRY" -ge "$MCP_RETRY_TIMES" ]; then
+        log "mcp save failed (tries=$MCP_RETRY_TIMES http=$MCP_SAVE_HTTP success=${MCP_SAVE_OK:-?})"
+        rm -f "$TMP_MCP" >/dev/null 2>&1 || true
+        exit 1
+      fi
+      log "mcp save retry ($MCP_TRY/$MCP_RETRY_TIMES http=$MCP_SAVE_HTTP success=${MCP_SAVE_OK:-?}), sleep ${MCP_RETRY_SLEEP}s"
+      MCP_TRY="$((MCP_TRY + 1))"
+      sleep "$MCP_RETRY_SLEEP"
+    done
     log "mcp save (http=$MCP_SAVE_HTTP success=${MCP_SAVE_OK:-?})"
 
     # MCP 同步结束，清理临时文件
