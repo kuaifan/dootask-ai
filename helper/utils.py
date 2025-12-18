@@ -77,8 +77,12 @@ def get_model_instance(model_type, model_name, api_key, **kwargs):
         if model_type == "openai":
             if thinking > 0:
                 config.update({"reasoning_effort": "medium"})
-            elif "gpt-5" in model_name.lower() and model_name != "gpt-5-chat-latest":
-                config.update({"reasoning_effort": "minimal"})
+            else:
+                name_lower = (model_name or "").lower()
+                match = re.search(r"\bgpt-(\d+)", name_lower)
+                gpt_major = int(match.group(1)) if match else None
+                if gpt_major is not None and gpt_major >= 5 and "-chat-" not in name_lower:
+                    config.update({"reasoning_effort": "medium"})
         else:
             if thinking > 0:
                 config.update({"thinking": {"type": "enabled", "budget_tokens": 2000 if thinking == 1 else thinking}})

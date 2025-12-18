@@ -36,27 +36,35 @@ REASONING_PATTERN = re.compile(r'::: reasoning\n.*?:::', re.DOTALL)
 # 默认模型列表
 DEFAULT_MODELS = {
     "openai": [
+        {"id": "gpt-5.2-chat-latest", "name": "GPT-5.2 Chat", "support_mcp": True},
+        {"id": "gpt-5.2-codex", "name": "GPT-5.2 Codex", "support_mcp": True},
+        {"id": "gpt-5.2-pro", "name": "GPT-5.2 Pro", "support_mcp": True},
         {"id": "gpt-5.2", "name": "GPT-5.2", "support_mcp": True},
+
         {"id": "gpt-5.1-chat-latest", "name": "GPT-5.1 Chat", "support_mcp": True},
         {"id": "gpt-5.1-codex-mini", "name": "GPT-5.1 Codex mini", "support_mcp": True},
         {"id": "gpt-5.1-codex", "name": "GPT-5.1 Codex", "support_mcp": True},
         {"id": "gpt-5.1", "name": "GPT-5.1", "support_mcp": True},
+
         {"id": "gpt-5-chat-latest", "name": "GPT-5 Chat", "support_mcp": True},
-        {"id": "gpt-5-codex", "name": "GPT-5-Codex", "support_mcp": True},
+        {"id": "gpt-5-codex", "name": "GPT-5 Codex", "support_mcp": True},
         {"id": "gpt-5-mini", "name": "GPT-5 mini", "support_mcp": True},
         {"id": "gpt-5-nano", "name": "GPT-5 nano", "support_mcp": True},
         {"id": "gpt-5-pro", "name": "GPT-5 pro", "support_mcp": True},
         {"id": "gpt-5", "name": "GPT-5", "support_mcp": True},
+
         {"id": "gpt-4.1", "name": "GPT-4.1", "support_mcp": True},
         {"id": "gpt-4o", "name": "GPT-4o", "support_mcp": True},
         {"id": "gpt-4", "name": "GPT-4", "support_mcp": True},
         {"id": "gpt-4o-mini", "name": "GPT-4o Mini", "support_mcp": True},
         {"id": "gpt-4-turbo", "name": "GPT-4 Turbo", "support_mcp": True},
+
         {"id": "o3", "name": "GPT-o3", "support_mcp": True},
         {"id": "o1", "name": "GPT-o1", "support_mcp": False},
         {"id": "o4-mini", "name": "GPT-o4 Mini", "support_mcp": True},
         {"id": "o3-mini", "name": "GPT-o3 Mini", "support_mcp": True},
         {"id": "o1-mini", "name": "GPT-o1 Mini", "support_mcp": False},
+
         {"id": "gpt-3.5-turbo", "name": "GPT-3.5 Turbo", "support_mcp": False},
         {"id": "gpt-3.5-turbo-16k", "name": "GPT-3.5 Turbo 16K", "support_mcp": False},
         {"id": "gpt-3.5-turbo-0125", "name": "GPT-3.5 Turbo 0125", "support_mcp": False},
@@ -66,9 +74,12 @@ DEFAULT_MODELS = {
         {"id": "claude-opus-4-5 (thinking)", "name": "Claude Opus 4.5", "support_mcp": True},
         {"id": "claude-sonnet-4-5 (thinking)", "name": "Claude Sonnet 4.5", "support_mcp": True},
         {"id": "claude-haiku-4-5 (thinking)", "name": "Claude Haiku 4.5", "support_mcp": True},
+
         {"id": "claude-opus-4-1 (thinking)", "name": "Claude Opus 4.1", "support_mcp": True},
+
         {"id": "claude-sonnet-4-0 (thinking)", "name": "Claude Sonnet 4.0", "support_mcp": True},
         {"id": "claude-opus-4-0 (thinking)", "name": "Claude Opus 4.0", "support_mcp": True},
+
         {"id": "claude-3-7-sonnet-latest (thinking)", "name": "Claude Sonnet 3.7", "support_mcp": True},
         {"id": "claude-3-5-haiku-latest", "name": "Claude Haiku 3.5", "support_mcp": True},
     ],
@@ -77,13 +88,16 @@ DEFAULT_MODELS = {
         {"id": "deepseek-reasoner", "name": "DeepSeek-V3.2-Reasoner", "support_mcp": True},
     ],
     "gemini": [
-        {"id": "gemini-3-pro-preview", "name": "Gemini 3 Preview", "support_mcp": True},
+        {"id": "gemini-3-pro-preview", "name": "Gemini 3 Pro", "support_mcp": True},
+        {"id": "gemini-3-flash-preview", "name": "Gemini 3 Flash", "support_mcp": True},
+
         {"id": "gemini-2.5-pro", "name": "Gemini 2.5 Pro", "support_mcp": True},
         {"id": "gemini-2.5-pro-tts", "name": "Gemini 2.5 Pro TTS", "support_mcp": True},
         {"id": "gemini-2.5-flash", "name": "Gemini 2.5 Flash", "support_mcp": True},
         {"id": "gemini-2.5-flash-tts", "name": "Gemini 2.5 Flash TTS", "support_mcp": True},
         {"id": "gemini-2.5-flash-live", "name": "Gemini 2.5 Flash Live", "support_mcp": True},
         {"id": "gemini-2.5-flash-image", "name": "Gemini 2.5 Flash Image", "support_mcp": True},
+        
         {"id": "gemini-2.0-flash", "name": "Gemini 2.0 Flash", "support_mcp": False},
         {"id": "gemini-2.0-flash-lite", "name": "Gemini 2.0 Flash Lite", "support_mcp": False},
     ],

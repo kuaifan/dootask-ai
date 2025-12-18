@@ -93,11 +93,31 @@ hooks:
     # 4) 本版本新增模型：增量补齐到各自 provider 的 *_models 配置中
     OPENAI_MODELS="$(jq -r '.data.openai_models // ""' "$TMP_SETTINGS" 2>/dev/null || true)"
     NEW_OPENAI="$OPENAI_MODELS"
+    if ! has_model "$NEW_OPENAI" "gpt-5.2-chat-latest"; then
+      NEW_OPENAI="$(prepend_model "$NEW_OPENAI" "gpt-5.2-chat-latest|GPT-5.2 Chat")"
+    else
+      log "openai_models already has gpt-5.2-chat-latest"
+    fi
+    if ! has_model "$NEW_OPENAI" "gpt-5.2-codex"; then
+      NEW_OPENAI="$(prepend_model "$NEW_OPENAI" "gpt-5.2-codex|GPT-5.2 Codex")"
+    else
+      log "openai_models already has gpt-5.2-codex"
+    fi
+    if ! has_model "$NEW_OPENAI" "gpt-5.2-pro"; then
+      NEW_OPENAI="$(prepend_model "$NEW_OPENAI" "gpt-5.2-pro|GPT-5.2 Pro")"
+    else
+      log "openai_models already has gpt-5.2-pro"
+    fi
     if ! has_model "$NEW_OPENAI" "gpt-5.2"; then
       NEW_OPENAI="$(prepend_model "$NEW_OPENAI" "gpt-5.2|GPT-5.2")"
-      save_models "openai" "openai_models" "$NEW_OPENAI"
     else
       log "openai_models already has gpt-5.2"
+    fi
+
+    if [ "$NEW_OPENAI" != "$OPENAI_MODELS" ]; then
+      save_models "openai" "openai_models" "$NEW_OPENAI"
+    else
+      log "openai_models already has gpt-5.2*"
     fi
 
     CLAUDE_MODELS="$(jq -r '.data.claude_models // ""' "$TMP_SETTINGS" 2>/dev/null || true)"
@@ -111,11 +131,25 @@ hooks:
 
     GEMINI_MODELS="$(jq -r '.data.gemini_models // ""' "$TMP_SETTINGS" 2>/dev/null || true)"
     NEW_GEMINI="$GEMINI_MODELS"
+
+    # 若已存在 gemini-3-pro-preview，统一迁移显示名为 Gemini 3 Pro（避免历史版本残留 Preview）
+    NEW_GEMINI="$(printf '%s\n' "$NEW_GEMINI" | awk -F'|' 'BEGIN{OFS="|"} {if ($1=="gemini-3-pro-preview") {$1="gemini-3-pro-preview"; $2="Gemini 3 Pro"} print}')"
+
+    if ! has_model "$NEW_GEMINI" "gemini-3-flash-preview"; then
+      NEW_GEMINI="$(prepend_model "$NEW_GEMINI" "gemini-3-flash-preview|Gemini 3 Flash")"
+    else
+      log "gemini_models already has gemini-3-flash-preview"
+    fi
     if ! has_model "$NEW_GEMINI" "gemini-3-pro-preview"; then
-      NEW_GEMINI="$(prepend_model "$NEW_GEMINI" "gemini-3-pro-preview|Gemini 3 Preview")"
-      save_models "gemini" "gemini_models" "$NEW_GEMINI"
+      NEW_GEMINI="$(prepend_model "$NEW_GEMINI" "gemini-3-pro-preview|Gemini 3 Pro")"
     else
       log "gemini_models already has gemini-3-pro-preview"
+    fi
+
+    if [ "$NEW_GEMINI" != "$GEMINI_MODELS" ]; then
+      save_models "gemini" "gemini_models" "$NEW_GEMINI"
+    else
+      log "gemini_models already has gemini-3-*"
     fi
 
     GROK_MODELS="$(jq -r '.data.grok_models // ""' "$TMP_SETTINGS" 2>/dev/null || true)"
@@ -159,7 +193,7 @@ hooks:
     done
 
     # 本次新增模型列表（写入 MCP 的 supportedModels）
-    ADD_MODELS='[{"id":"gpt-5.2","name":"GPT-5.2"},{"id":"claude-opus-4-5 (thinking)","name":"Claude Opus 4.5"},{"id":"gemini-3-pro-preview","name":"Gemini 3 Preview"},{"id":"grok-4-1-fast-reasoning","name":"Grok 4.1 Fast Reasoning"},{"id":"grok-4-1-fast-non-reasoning","name":"Grok 4.1 Fast"}]'
+    ADD_MODELS='[{"id":"gpt-5.2-chat-latest","name":"GPT-5.2 Chat"},{"id":"gpt-5.2-codex","name":"GPT-5.2 Codex"},{"id":"gpt-5.2-pro","name":"GPT-5.2 Pro"},{"id":"gpt-5.2","name":"GPT-5.2"},{"id":"claude-opus-4-5 (thinking)","name":"Claude Opus 4.5"},{"id":"gemini-3-pro-preview","name":"Gemini 3 Pro"},{"id":"gemini-3-flash-preview","name":"Gemini 3 Flash"},{"id":"grok-4-1-fast-reasoning","name":"Grok 4.1 Fast Reasoning"},{"id":"grok-4-1-fast-non-reasoning","name":"Grok 4.1 Fast"}]'
 
     # 归一化 supportedModels（兼容 string/object），并对每个 MCP 做 unique_by(id) 合并
     UPDATED_MCP="$(
