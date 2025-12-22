@@ -270,9 +270,11 @@ async def stream(msg_id: str, stream_key: str):
             finished_stream(),
             media_type='text/event-stream'
         )
+
+    dootask_available = bool(getattr(app.state, "dootask_mcp", False))
     tools = await load_mcp_tools_for_model(
         data.get("model_name", ""),
-        dootask_available=bool(getattr(app.state, "dootask_mcp", False)),
+        dootask_available=dootask_available,
         token_candidates=[data.get("msg_user_token"), data.get("token")],
     )
     async def stream_generate(msg_id, msg_key, data, redis_manager):
@@ -319,6 +321,26 @@ async def stream(msg_id: str, stream_key: str):
             # 获取现有上下文
             middle_context = await redis_manager.get_context(data["context_key"])
 
+            # 添加 MCP 工具使用提示
+            hint_cache_key = None
+            if dootask_available:
+                hint_cache_key = f"mcp_hint_shown_{data['context_key']}"
+                # 检查是否需要添加提示：1) Redis 无标记 2) pre_context 中无该提示
+                hint_cache_value = await redis_manager.get_cache(hint_cache_key)
+                has_hint_in_context = any(isinstance(msg, SystemMessage) and "get_message_list" in msg.content for msg in pre_context)
+                if not hint_cache_value and not has_hint_in_context:
+                    hint_content = (
+                        f"如果用户的提问涉及历史对话内容或需要查看完整聊天记录，"
+                        f"请使用 get_message_list 工具获取（dialog_id: {data['dialog_id']}）。"
+                    )
+                    # 尝试追加到现有 SystemMessage，否则插入新的
+                    for index, msg in enumerate(pre_context):
+                        if isinstance(msg, SystemMessage):
+                            pre_context[index] = SystemMessage(content=f"{msg.content}\n\n{hint_content}")
+                            break
+                    else:
+                        pre_context.insert(0, SystemMessage(content=hint_content))
+
             middle_messages = []
             if middle_context:
                 middle_messages = [dict_to_message(msg_dict) for msg_dict in middle_context]
@@ -342,7 +364,9 @@ async def stream(msg_id: str, stream_key: str):
             # 状态变量
             has_reasoning = False
             is_response = False
-            
+            # 记录是否使用了 get_message_list 工具
+            has_used_get_message_list = False
+
             agent = create_agent(model, tools)
             
             # 开始请求流式响应
@@ -351,6 +375,14 @@ async def stream(msg_id: str, stream_key: str):
                 msg, metadata = chunk
                 if "skip_stream" in metadata.get("tags", []):
                     continue
+
+                # 检测 MCP 工具调用
+                if not has_used_get_message_list and hasattr(msg, 'tool_calls') and msg.tool_calls:
+                    for tool_call in msg.tool_calls:
+                        if tool_call.get('name') == 'get_message_list':
+                            has_used_get_message_list = True
+                            break
+
                 # For some reason, astream("messages") causes non-LLM nodes to send extra messages.
                 # Drop them.
                 if not isinstance(msg, AIMessageChunk):
@@ -397,11 +429,15 @@ async def stream(msg_id: str, stream_key: str):
                         last_cache_time = current_time                    
 
             # 更新上下文
-            if response:    
+            if response:
                 await redis_manager.extend_contexts(data["context_key"], [
                     message_to_dict(HumanMessage(content=data["text"])),
                     message_to_dict(AIMessage(content=remove_reasoning_content(response)))
                 ], data["model_type"], data["model_name"], data["context_limit"])
+
+            # 如果本次使用了 get_message_list 工具，标记不再需要提示
+            if hint_cache_key and has_used_get_message_list:
+                await redis_manager.set_cache(hint_cache_key, "1", ex=2592000)
 
         except Exception as e:
             # 处理异常
