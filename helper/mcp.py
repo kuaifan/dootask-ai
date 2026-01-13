@@ -1,12 +1,50 @@
 import json
 import logging
-from typing import Dict, List, Optional
+from functools import wraps
+from typing import Any, Callable, Dict, List, Optional
 
+from langchain_core.tools import BaseTool, ToolException
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
 from helper.config import DOOTASK_MCP_ID, DOOTASK_MCP_NAME, MCP_CONFIG_PATH, MCP_STREAM_URL, DEFAULT_MODELS
 
 logger = logging.getLogger("ai")
+
+
+def _wrap_tool_with_error_handling(tool: BaseTool) -> BaseTool:
+    """Wrap a tool to handle errors gracefully and return error messages instead of raising."""
+    original_run = tool._run
+    original_arun = tool._arun
+
+    @wraps(original_run)
+    def wrapped_run(*args: Any, **kwargs: Any) -> Any:
+        try:
+            return original_run(*args, **kwargs)
+        except ToolException as e:
+            error_msg = str(e)
+            logger.warning("Tool '%s' execution failed: %s", tool.name, error_msg)
+            return f"Tool execution failed: {error_msg}"
+        except Exception as e:
+            error_msg = str(e)
+            logger.warning("Tool '%s' execution error: %s", tool.name, error_msg)
+            return f"Tool execution error: {error_msg}"
+
+    @wraps(original_arun)
+    async def wrapped_arun(*args: Any, **kwargs: Any) -> Any:
+        try:
+            return await original_arun(*args, **kwargs)
+        except ToolException as e:
+            error_msg = str(e)
+            logger.warning("Tool '%s' execution failed: %s", tool.name, error_msg)
+            return f"Tool execution failed: {error_msg}"
+        except Exception as e:
+            error_msg = str(e)
+            logger.warning("Tool '%s' execution error: %s", tool.name, error_msg)
+            return f"Tool execution error: {error_msg}"
+
+    tool._run = wrapped_run
+    tool._arun = wrapped_arun
+    return tool
 
 
 class MCPConfigError(Exception):
@@ -227,7 +265,8 @@ async def load_mcp_tools_for_model(
 
     client = MultiServerMCPClient(server_configs)
     try:
-        return await client.get_tools()
+        tools = await client.get_tools()
+        return [_wrap_tool_with_error_handling(tool) for tool in tools]
     except Exception as exc:
         logger.error("Failed to load MCP tools: %s", exc)
         return []
