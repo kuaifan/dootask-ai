@@ -33,6 +33,9 @@ THINK_START_PATTERN = re.compile(r'<think>\s*')
 THINK_END_PATTERN = re.compile(r'\s*</think>')
 REASONING_PATTERN = re.compile(r'::: reasoning\n.*?:::', re.DOTALL)
 
+# 工具调用标记的正则模式
+TOOL_CALL_PATTERN = re.compile(r'\n?> <tool-use>Tool: [^<]+</tool-use>\n*')
+
 # 默认模型列表
 DEFAULT_MODELS = {
     "openai": [

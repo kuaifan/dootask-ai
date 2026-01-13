@@ -38,6 +38,7 @@ from helper.utils import (
     remove_tool_calls,
     replace_think_content,
     remove_reasoning_content,
+    clean_messages_for_ai,
     process_html_content
 )
 from helper.mcp import (
@@ -366,25 +367,37 @@ async def stream(msg_id: str, stream_key: str):
             is_response = False
             # 记录是否使用了 get_message_list 工具
             has_used_get_message_list = False
+            # 记录已显示的工具调用（避免重复显示）
+            displayed_tool_calls = set()
 
             agent = create_agent(model, tools)
-            
+
+            # 清理消息中的工具调用标记，避免干扰 AI
+            clean_context = clean_messages_for_ai(final_context)
+
             # 开始请求流式响应
-            async for chunk in agent.astream({"messages": final_context}, stream_mode="messages"):
+            async for chunk in agent.astream({"messages": clean_context}, stream_mode="messages"):
                 # logger.info(chunk)
                 msg, metadata = chunk
                 if "skip_stream" in metadata.get("tags", []):
                     continue
 
-                # 检测 MCP 工具调用
-                if not has_used_get_message_list and hasattr(msg, 'tool_calls') and msg.tool_calls:
+                # 检测 MCP 工具调用并追加到响应
+                if hasattr(msg, 'tool_calls') and msg.tool_calls:
                     for tool_call in msg.tool_calls:
-                        if tool_call.get('name') == 'get_message_list':
-                            has_used_get_message_list = True
-                            break
+                        tool_name = tool_call.get('name')
+                        tool_id = tool_call.get('id')
+                        if tool_id and tool_id not in displayed_tool_calls:
+                            displayed_tool_calls.add(tool_id)
+                            if has_reasoning:
+                                response += "\n:::\n\n"
+                                has_reasoning = False
+                            response += f"\n> <tool-use>Tool: {tool_name}</tool-use>\n\n"
+                            await redis_manager.set_cache(msg_key, response, ex=STREAM_TIMEOUT)
+                            if tool_name == 'get_message_list':
+                                has_used_get_message_list = True
 
                 # For some reason, astream("messages") causes non-LLM nodes to send extra messages.
-                # Drop them.
                 if not isinstance(msg, AIMessageChunk):
                     continue
 
@@ -693,18 +706,35 @@ async def invoke_stream(request: Request, stream_key: str):
         last_sent = ""
         has_reasoning = False
         is_response = False
+        displayed_tool_calls = set()
         data["status"] = "processing"
         await app.state.redis_manager.set_input(storage_key, data)
         try:
-            async for chunk in agent.astream({"messages": final_context}, stream_mode="messages"):
+            # 清理消息中的工具调用标记，避免干扰 AI
+            clean_context = clean_messages_for_ai(final_context)
+
+            async for chunk in agent.astream({"messages": clean_context}, stream_mode="messages"):
                 # logger.info(chunk)
                 msg, metadata = chunk
                 if "skip_stream" in metadata.get("tags", []):
                     continue
+
+                # 检测 MCP 工具调用并追加到响应
+                if hasattr(msg, 'tool_calls') and msg.tool_calls:
+                    for tool_call in msg.tool_calls:
+                        tool_name = tool_call.get('name')
+                        tool_id = tool_call.get('id')
+                        if tool_id and tool_id not in displayed_tool_calls:
+                            displayed_tool_calls.add(tool_id)
+                            if has_reasoning:
+                                response_text += "\n:::\n\n"
+                                has_reasoning = False
+                            response_text += f"\n> <tool-use>Tool: {tool_name}</tool-use>\n\n"
+
                 # For some reason, astream("messages") causes non-LLM nodes to send extra messages.
-                # Drop them.
                 if not isinstance(msg, AIMessageChunk):
                     continue
+
                 if hasattr(chunk, "content") and isinstance(msg.content, list):
                     should_continue = True
                     if msg.content:
@@ -728,6 +758,7 @@ async def invoke_stream(request: Request, stream_key: str):
                         has_reasoning = True
                     response_text += msg.reasoning_content
                     response_text = replace_think_content(response_text)
+                    
                 if hasattr(msg, "content") and msg.content:
                     if has_reasoning:
                         response_text += "\n:::\n\n"

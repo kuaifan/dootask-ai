@@ -12,7 +12,7 @@ from langchain_community.chat_models import (
 from .deepseek import DeepseekChatOpenAI
 from .request import RequestClient
 from .redis import RedisManager
-from .config import THINK_START_PATTERN, THINK_END_PATTERN, REASONING_PATTERN
+from .config import THINK_START_PATTERN, THINK_END_PATTERN, REASONING_PATTERN, TOOL_CALL_PATTERN
 import os
 import time
 import json
@@ -210,6 +210,28 @@ def remove_reasoning_content(text):
     if "::: reasoning\n" in text:
         text = REASONING_PATTERN.sub('', text)
     return text
+
+def remove_tool_call_markers(text):
+    """移除文本中的工具调用标记"""
+    if "</tool-use>" in text:
+        text = TOOL_CALL_PATTERN.sub('', text)
+    return text
+
+
+def clean_messages_for_ai(messages: list) -> list:
+    """
+    清理消息列表，移除工具调用标记。
+    在发送给 AI 之前调用，确保 AI 不会看到工具调用标记。
+    """
+    cleaned = []
+    for msg in messages:
+        if hasattr(msg, 'content') and isinstance(msg.content, str) and '</tool-use>' in msg.content:
+            cleaned_content = TOOL_CALL_PATTERN.sub('', msg.content)
+            msg_class = type(msg)
+            cleaned.append(msg_class(content=cleaned_content))
+        else:
+            cleaned.append(msg)
+    return cleaned
 
 def process_html_content(text):
     """
