@@ -153,26 +153,101 @@ DEFAULT_MODELS = {
 }
 
 # 模型上下文限制（token数）
+# 原则：只配置明确知道的，不知道的使用最小值
+# 数值为官方文档的原始值
 CONTEXT_LIMITS = {
     "openai": {
-        "default": 400000
+        # GPT-4 系列: 128K context
+        "gpt-4o": 128000,
+        "gpt-4o-mini": 128000,
+        "gpt-4-turbo": 128000,
+        "gpt-4.1": 128000,
+        "gpt-4": 8000,  # 原始 GPT-4 只有 8K
+        # GPT-3.5 系列
+        "gpt-3.5-turbo-16k": 16000,
+        "gpt-3.5-turbo": 4000,
+        "gpt-3.5-turbo-0125": 16000,
+        "gpt-3.5-turbo-1106": 16000,
+        # o 系列: 128K-200K context
+        "o1": 128000,
+        "o1-mini": 128000,
+        "o3": 200000,
+        "o3-mini": 128000,
+        "o4-mini": 200000,
+        "default": 8000,  # 不确定的模型使用最小值
     },
     "claude": {
-        "default": 200000
+        # Claude 全系列: 200K context
+        "default": 200000,
     },
     "deepseek": {
-        "default": 128000
+        # DeepSeek: 128K context
+        "deepseek-chat": 128000,
+        "deepseek-reasoner": 128000,
+        "default": 128000,
     },
     "gemini": {
-        "default": 200000
-    },
-    "zhipu": {
-        "default": 128000
-    },
-    "qwen": {
-        "default": 128000
+        # Gemini 2.0/2.5: ~1M context
+        "gemini-2.5-pro": 1000000,
+        "gemini-2.5-flash": 1000000,
+        "gemini-2.0-flash": 1000000,
+        "default": 1000000,
     },
     "grok": {
-        "default": 128000
-    }
+        # Grok 4.x: 2M context
+        "grok-4-1-fast-reasoning": 2000000,
+        "grok-4-1-fast-non-reasoning": 2000000,
+        "grok-4-fast-reasoning": 2000000,
+        "grok-4-fast-non-reasoning": 2000000,
+        "grok-4-0709": 2000000,
+        # Grok 3: 128K
+        "grok-3-latest": 128000,
+        "grok-3-fast-latest": 128000,
+        "default": 128000,
+    },
+    "zhipu": {
+        # GLM-4-Long: 1M context
+        "glm-4-long": 1000000,
+        # GLM-4 系列: 128K context
+        "glm-4": 128000,
+        "glm-4-plus": 128000,
+        "glm-4-air": 128000,
+        "glm-4-airx": 128000,
+        "glm-4-flash": 128000,
+        # GLM-4V 视觉模型: 16K context
+        "glm-4v": 16000,
+        "glm-4v-plus": 16000,
+        # GLM-3
+        "glm-3-turbo": 8000,
+        "default": 8000,
+    },
+    "qianwen": {
+        # Qwen: 默认 32K，qwen-long 可扩展到 131K
+        "qwen-long": 131000,
+        "qwen-max": 32000,
+        "qwen-max-latest": 32000,
+        "qwen-plus": 32000,
+        "qwen-plus-latest": 32000,
+        "qwen-turbo": 32000,
+        "qwen-turbo-latest": 32000,
+        "default": 32000,
+    },
+    "wenxin": {
+        # 文心一言: 根据模型名称中的 K 数确定
+        "ernie-4.5-turbo-128k": 128000,
+        "ernie-4.5-turbo-32k": 32000,
+        "ernie-4.5-turbo-latest": 32000,
+        "ernie-4.5-turbo-vl": 32000,
+        "ernie-4.0-turbo-128k": 128000,
+        "ernie-4.0-turbo-8k": 8000,
+        "ernie-4.0-8k": 8000,
+        "ernie-4.0-8k-latest": 8000,
+        "ernie-3.5-128k": 128000,
+        "ernie-3.5-8k": 8000,
+        "ernie-speed-128k": 128000,
+        "ernie-speed-8k": 8000,
+        "ernie-lite-8k": 8000,
+        "ernie-tiny-8k": 8000,
+        "default": 8000,
+    },
 }

@@ -24,7 +24,7 @@ from helper.models import (
     ModelListError,
     get_models_list,
 )
-from helper.redis import handle_context_limits
+from helper.context import handle_context_limits
 from helper.request import RequestClient
 from helper.utils import (
     convert_message_content_to_string,
@@ -352,9 +352,10 @@ async def stream(msg_id: str, stream_key: str):
                 pre_context=pre_context,
                 middle_context=middle_messages,
                 end_context=end_context,
-                model_type=data["model_type"], 
-                model_name=data["model_name"], 
-                custom_limit=data["context_limit"]
+                model_type=data["model_type"],
+                model_name=data["model_name"],
+                custom_limit=data["context_limit"],
+                default_ratio=0.9
             )
             # 检查上下文是否超限
             if not final_context:
@@ -568,6 +569,7 @@ async def invoke_auth(request: Request, token: str = Header(..., alias="Authoriz
         'max_tokens': 0,
         'temperature': 0.7,
         'thinking': 0,
+        'context_limit': 0,
     }
     
     # 应用默认值和类型转换
@@ -585,6 +587,7 @@ async def invoke_auth(request: Request, token: str = Header(..., alias="Authoriz
     api_key = params.get('api_key')
     base_url = params.get('base_url')
     agency = params.get('agency')
+    context_limit = params.get('context_limit', 0)
 
     model_type, model_name, max_tokens, temperature, thinking = (
         params[k] for k in defaults.keys()
@@ -608,6 +611,7 @@ async def invoke_auth(request: Request, token: str = Header(..., alias="Authoriz
         "temperature": temperature,
         "max_tokens": max_tokens,
         "thinking": thinking,
+        "context_limit": context_limit,
         "status": "pending",
         "response": "",
         "created_at": int(time.time()),
@@ -664,15 +668,48 @@ async def invoke_stream(request: Request, stream_key: str):
         )    
 
     stored_context = data.get("final_context") or []
-    final_context = parse_context(stored_context)
-    if not final_context:
+    parsed_context = parse_context(stored_context)
+    if not parsed_context:
         async def no_context_stream():
             yield f"id: {stream_key}\nevent: done\ndata: {json_error('No context found')}\n\n"
         return StreamingResponse(
             no_context_stream(),
             media_type='text/event-stream'
         )
-    
+
+    # 处理上下文限制：拆分为 pre_context（系统提示）、middle_context（历史）、end_context（当前输入）
+    # 优先级：end_context > pre_context > middle_context
+    pre_context = []
+    middle_context = []
+    end_context = parsed_context[-1:] if parsed_context else []
+
+    # 检查第一条消息是否是系统提示词
+    remaining = parsed_context[:-1] if len(parsed_context) > 1 else []
+    if remaining and isinstance(remaining[0], SystemMessage):
+        pre_context = [remaining[0]]
+        middle_context = remaining[1:]
+    else:
+        middle_context = remaining
+
+    # 应用 token 限制
+    final_context = handle_context_limits(
+        pre_context=pre_context,
+        middle_context=middle_context,
+        end_context=end_context,
+        model_type=data.get("model_type"),
+        model_name=data.get("model_name"),
+        custom_limit=data.get("context_limit", 0),
+        default_ratio=0.9,
+    )
+
+    if not final_context:
+        async def context_exceeded_stream():
+            yield f"id: {stream_key}\nevent: done\ndata: {json_error('Context limit exceeded')}\n\n"
+        return StreamingResponse(
+            context_exceeded_stream(),
+            media_type='text/event-stream'
+        )
+
     try:
 
         model = get_model_instance(

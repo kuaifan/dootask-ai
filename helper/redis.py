@@ -1,93 +1,13 @@
+"""
+Redis 管理模块
+
+负责与 Redis 的交互，包括上下文存储、输入缓存等。
+"""
+
 import redis.asyncio as redis
 import json
 import os
-import re
-import tiktoken
-from typing import List, Tuple
 
-from helper.config import CONTEXT_LIMITS
-
-# 提前加载所需的编码
-tiktoken.get_encoding("o200k_base")
-tiktoken.get_encoding("cl100k_base")
-
-def count_tokens(text: str, model_type: str, model_name: str) -> int:
-    """计算文本的token数量"""
-    if not text:
-        return 0
-
-    # 默认使用cl100k_base编码
-    encoding_name = "cl100k_base"
-    
-    # 根据模型类型选择合适的编码
-    if model_type == "openai":
-        try:
-            # 对OpenAI模型尝试获取特定的编码
-            encoding = tiktoken.encoding_for_model(model_name)
-            return len(encoding.encode(text))
-        except KeyError:
-            # 如果失败，使用默认编码
-            pass
-    
-    # 对于deepseek模型和所有其他情况（包括OpenAI模型编码获取失败）
-    # 使用默认的cl100k_base编码
-    encoding = tiktoken.get_encoding(encoding_name)
-    return len(encoding.encode(text))
-
-def model_limit(model_type: str, model_name: str) -> int:
-    """获取模型token限制"""
-    if model_type in CONTEXT_LIMITS:
-        model_limits = CONTEXT_LIMITS[model_type]
-        return model_limits.get(model_name, model_limits.get('default', 4096))
-    return 4096
-
-def handle_context_limits(pre_context: list, middle_context: list, end_context: list, model_type: str = None, model_name: str = None, custom_limit: int = None) -> List[Tuple[str, str]]:
-    """处理上下文，确保不超过模型token限制"""
-    all_context = pre_context + middle_context + end_context
-    if not all_context:
-        return []
-    # 获取token限制
-    if custom_limit and custom_limit > 0:
-        token_limit = custom_limit
-    else:
-        token_limit = model_limit(model_type, model_name)
-    # 按优先级处理上下文
-    result = []
-    current_tokens = 0
-
-    # 1. 首先添加 end_context（最高优先级）
-    for msg in end_context:
-        msg_tokens = count_tokens(msg.content, model_type, model_name)
-        if current_tokens + msg_tokens <= token_limit:
-            result.append(msg)
-            current_tokens += msg_tokens
-        else:
-            # 如果连 end_context 都放不下，直接返回能放下的部分
-            return result
-    # 2. 其次添加 pre_context（第二优先级）
-    for msg in pre_context:
-        msg_tokens = count_tokens(msg.content, model_type, model_name)
-        if current_tokens + msg_tokens <= token_limit:
-            result.insert(len(result) - len(end_context), msg)
-            current_tokens += msg_tokens
-        else:
-            break
-
-    # 3. 最后添加 middle_context（最低优先级）
-    # 从最新的消息开始添加，保存到临时列表中
-    temp_middle = []
-    for msg in reversed(middle_context):
-        msg_tokens = count_tokens(msg.content, model_type, model_name)
-        if current_tokens + msg_tokens <= token_limit:
-            temp_middle.append(msg)
-            current_tokens += msg_tokens
-        else:
-            break
-    
-    # 将收集到的 middle_context 按原始顺序插入
-    for msg in reversed(temp_middle):
-        result.insert(len(result) - len(end_context), msg)
-    return result
 
 class RedisManager:
     _instance = None
