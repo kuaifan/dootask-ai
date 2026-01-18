@@ -12,9 +12,17 @@ logger = logging.getLogger("ai")
 
 
 def _wrap_tool_with_error_handling(tool: BaseTool) -> BaseTool:
-    """Wrap a tool to handle errors gracefully and return error messages instead of raising."""
+    """Wrap a tool to handle errors gracefully and return error messages instead of raising.
+
+    Note: MCP tools use response_format="content_and_artifact", so error returns must be
+    a tuple of (content, artifact) where content is a list of content blocks.
+    """
     original_run = tool._run
     original_arun = tool._arun
+
+    def _format_error_response(error_msg: str) -> tuple:
+        """Format error message as content_and_artifact tuple."""
+        return ([{"type": "text", "text": error_msg}], None)
 
     @wraps(original_run)
     def wrapped_run(*args: Any, **kwargs: Any) -> Any:
@@ -23,11 +31,11 @@ def _wrap_tool_with_error_handling(tool: BaseTool) -> BaseTool:
         except ToolException as e:
             error_msg = str(e)
             logger.warning("Tool '%s' execution failed: %s", tool.name, error_msg)
-            return f"Tool execution failed: {error_msg}"
+            return _format_error_response(f"Tool execution failed: {error_msg}")
         except Exception as e:
             error_msg = str(e)
             logger.warning("Tool '%s' execution error: %s", tool.name, error_msg)
-            return f"Tool execution error: {error_msg}"
+            return _format_error_response(f"Tool execution error: {error_msg}")
 
     @wraps(original_arun)
     async def wrapped_arun(*args: Any, **kwargs: Any) -> Any:
@@ -36,11 +44,11 @@ def _wrap_tool_with_error_handling(tool: BaseTool) -> BaseTool:
         except ToolException as e:
             error_msg = str(e)
             logger.warning("Tool '%s' execution failed: %s", tool.name, error_msg)
-            return f"Tool execution failed: {error_msg}"
+            return _format_error_response(f"Tool execution failed: {error_msg}")
         except Exception as e:
             error_msg = str(e)
             logger.warning("Tool '%s' execution error: %s", tool.name, error_msg)
-            return f"Tool execution error: {error_msg}"
+            return _format_error_response(f"Tool execution error: {error_msg}")
 
     tool._run = wrapped_run
     tool._arun = wrapped_arun

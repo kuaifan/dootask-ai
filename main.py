@@ -569,7 +569,6 @@ async def invoke_auth(request: Request, token: str = Header(..., alias="Authoriz
         'max_tokens': 0,
         'temperature': 0.7,
         'thinking': 0,
-        'context_limit': 0,
     }
     
     # 应用默认值和类型转换
@@ -587,7 +586,10 @@ async def invoke_auth(request: Request, token: str = Header(..., alias="Authoriz
     api_key = params.get('api_key')
     base_url = params.get('base_url')
     agency = params.get('agency')
-    context_limit = params.get('context_limit', 0)
+    try:
+        context_limit = int(params.get('context_limit', 0))
+    except (ValueError, TypeError):
+        context_limit = 0
 
     model_type, model_name, max_tokens, temperature, thinking = (
         params[k] for k in defaults.keys()
