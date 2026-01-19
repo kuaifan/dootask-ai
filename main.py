@@ -51,6 +51,7 @@ from helper.vision import (
     load_vision_config,
     save_vision_config,
     collect_vision_capable_models,
+    process_vision_content,
 )
 from helper.config import VISION_DATA_DIR
 
@@ -196,6 +197,12 @@ async def chat(request: Request):
 
     # 处理HTML内容（图片标签）
     text = process_html_content(text)
+
+    # 处理多模态内容（图片）
+    if isinstance(text, list):
+        # Multimodal content - process images
+        vision_config = load_vision_config()
+        text = await process_vision_content(text, model_name, vision_config)
 
     # 生成随机8位字符串
     stream_key = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
