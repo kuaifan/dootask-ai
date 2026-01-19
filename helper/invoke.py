@@ -54,23 +54,39 @@ def _normalize_message(item: Any) -> Optional[BaseMessage]:
         role, content = "human", item
     elif item is not None:
         role, content = "human", str(item)
+
     # 无内容则返回 None
-    if not content:
+    if content is None:
+        return None
+
+    # 如果 content 是空字符串，也返回 None
+    if isinstance(content, str) and not content:
         return None
 
     # 角色标准化
     normalized_role = _normalize_role(role)
 
+    # 处理 content - 支持字符串或多模态列表
+    # 多模态列表格式: [{"type": "text", "text": "..."}, {"type": "image_url", "image_url": {...}}]
+    final_content = content
+    if isinstance(content, list):
+        # Keep list content as-is for multimodal support
+        final_content = content
+    elif not isinstance(content, str):
+        final_content = str(content)
+
     # 构造 LangChain 消息对象
     if normalized_role == "human":
-        return HumanMessage(content=str(content))
+        return HumanMessage(content=final_content)
     elif normalized_role == "assistant":
-        return AIMessage(content=str(content))
+        # AI messages should be string for context storage
+        return AIMessage(content=final_content if isinstance(final_content, str) else str(final_content))
     elif normalized_role == "system":
-        return SystemMessage(content=str(content))
+        # System messages should be string
+        return SystemMessage(content=final_content if isinstance(final_content, str) else str(final_content))
     else:
         # 默认安全回退
-        return HumanMessage(content=str(content))
+        return HumanMessage(content=final_content)
 
 
 def parse_context(raw_context: RawContext) -> List[Message]:
