@@ -28,6 +28,14 @@ hooks:
     # 统一日志前缀，便于在升级日志里检索
     log() { echo "[dootask-ai][upgrade] $*"; }
 
+    # 0) 升级标记检查：若已执行过此升级则跳过
+    UPGRADE_MARKER_DIR="/usr/share/dootask/ai-plugin/upgrades"
+    UPGRADE_MARKER="$UPGRADE_MARKER_DIR/add-gpt52-claude45-gemini3-grok41.done"
+    if [ -f "$UPGRADE_MARKER" ]; then
+      log "skip: already upgraded (marker exists)"
+      exit 0
+    fi
+
     # 1) 必要环境变量校验
     ACTOR_TOKEN="${ACTOR_TOKEN:-}"
     [ -n "$ACTOR_TOKEN" ] || exit 0
@@ -244,4 +252,8 @@ hooks:
 
     # MCP 同步结束，清理临时文件
     rm -f "$TMP_MCP" "$TMP_MCP_SAVE" >/dev/null 2>&1 || true
-    log "done"
+
+    # 创建版本标记文件，标记本版本升级已完成
+    mkdir -p "$UPGRADE_MARKER_DIR" >/dev/null 2>&1 || true
+    echo "$(date -Iseconds)" > "$UPGRADE_MARKER" 2>/dev/null || true
+    log "done (marker created)"
