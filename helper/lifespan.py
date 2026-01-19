@@ -10,7 +10,8 @@ from fastapi.concurrency import asynccontextmanager
 # 本地模块导入
 from helper.redis import RedisManager
 from helper.mcp import ensure_dootask_mcp_config
-from helper.config import MCP_HEALTH_URL, MCP_CHECK_INTERVAL
+from helper.config import MCP_HEALTH_URL, MCP_CHECK_INTERVAL, VISION_CLEANUP_INTERVAL
+from helper.vision import cleanup_old_images
 
 # 日志配置
 logger = logging.getLogger("ai")
@@ -37,12 +38,24 @@ async def periodic_mcp_check(app: FastAPI, interval: int = MCP_CHECK_INTERVAL) -
         await asyncio.sleep(interval)
 
 
+async def periodic_vision_cleanup(interval: int = VISION_CLEANUP_INTERVAL) -> None:
+    """Periodically cleanup old vision images."""
+    # Run once at startup
+    cleanup_old_images()
+    # Then run periodically
+    while True:
+        await asyncio.sleep(interval)
+        cleanup_old_images()
+
+
 @asynccontextmanager
 async def lifespan_context(app: FastAPI):
     """FastAPI 生命周期钩子，负责启动/停止 Redis 和周期任务。"""
-    task = None
+    mcp_task = None
+    vision_task = None
     try:
-        task = asyncio.create_task(periodic_mcp_check(app))
+        mcp_task = asyncio.create_task(periodic_mcp_check(app))
+        vision_task = asyncio.create_task(periodic_vision_cleanup())
         redis_manager = RedisManager()
         app.state.redis_manager = redis_manager
         logger.info("✅ 初始化成功")
@@ -51,11 +64,12 @@ async def lifespan_context(app: FastAPI):
     try:
         yield
     finally:
-        if task is not None:
-            task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
-            logger.info("✅ 定时任务已停止")
+        for task in [mcp_task, vision_task]:
+            if task is not None:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+        logger.info("✅ 定时任务已停止")
         logger.info("🛑 AI服务正在关闭...")
