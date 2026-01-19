@@ -692,6 +692,19 @@ async def invoke_stream(request: Request, stream_key: str):
             media_type='text/event-stream'
         )
 
+    # 处理上下文中的图片内容
+    vision_config = load_vision_config()
+    model_name = data.get("model_name", "")
+    processed_context = []
+    for msg in parsed_context:
+        if hasattr(msg, 'content') and isinstance(msg.content, list):
+            # Multimodal message - process images
+            processed_content = await process_vision_content(msg.content, model_name, vision_config)
+            processed_context.append(type(msg)(content=processed_content))
+        else:
+            processed_context.append(msg)
+    parsed_context = processed_context
+
     # 处理上下文限制：拆分为 pre_context（系统提示）、middle_context（历史）、end_context（当前输入）
     # 优先级：end_context > pre_context > middle_context
     pre_context = []
