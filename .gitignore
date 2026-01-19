@@ -84,4 +84,12 @@ test.*
 .Spotlight-V100
 .Trashes
 ehthumbs.db
-Thumbs.db 
+Thumbs.db
+
+# Vision data files (keep .gitkeep)
+data/vision/*.jpg
+data/vision/*.png
+data/vision/*.jpeg
+data/vision/*.webp
+data/vision/*.gif
+!data/vision/.gitkeep

@@ -1,0 +1,7 @@
+{
+  "enabled": false,
+  "supportedModels": [],
+  "maxImageSize": 2048,
+  "maxFileSize": 10,
+  "compressionQuality": 80
+}
