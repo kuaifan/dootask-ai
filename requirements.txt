@@ -1,5 +1,6 @@
 dashscope
 fastapi
+Pillow
 fastmcp
 langchain-mcp-adapters 
 langgraph
