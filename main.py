@@ -47,6 +47,12 @@ from helper.mcp import (
     save_mcp_config_data,
     load_mcp_tools_for_model,
 )
+from helper.vision import (
+    load_vision_config,
+    save_vision_config,
+    collect_vision_capable_models,
+)
+from helper.config import VISION_DATA_DIR
 
 # 日志配置
 logging.basicConfig(
@@ -902,6 +908,59 @@ async def save_mcp_config(request: Request):
     except MCPConfigError as exc:
         logger.error(f"Failed to save MCP config: {exc}")
         return JSONResponse(content={"error": "Failed to save MCP config"}, status_code=500)
+
+@app.get('/vision/config')
+async def get_vision_config():
+    """获取视觉识别配置"""
+    try:
+        config = load_vision_config()
+        # Also return available models for UI
+        config["availableModels"] = collect_vision_capable_models()
+        return JSONResponse(content={"code": 200, "data": config})
+    except Exception as exc:
+        logger.error(f"Failed to get vision config: {exc}")
+        return JSONResponse(content={"code": 500, "error": str(exc)}, status_code=500)
+
+@app.post('/vision/config')
+async def save_vision_config_endpoint(request: Request):
+    """保存视觉识别配置"""
+    try:
+        data = await request.json()
+        # Remove availableModels if present (it's computed, not stored)
+        data.pop("availableModels", None)
+        if save_vision_config(data):
+            return JSONResponse(content={"code": 200, "data": {"message": "ok"}})
+        else:
+            return JSONResponse(content={"code": 500, "error": "Failed to save config"})
+    except Exception as exc:
+        logger.error(f"Failed to save vision config: {exc}")
+        return JSONResponse(content={"code": 500, "error": str(exc)}, status_code=500)
+
+@app.get('/vision/preview/{filename}')
+async def vision_preview(filename: str):
+    """图片预览接口"""
+    # Security: only allow specific extensions and no path traversal
+    if ".." in filename or "/" in filename or "\\" in filename:
+        return JSONResponse(content={"code": 400, "error": "Invalid filename"}, status_code=400)
+
+    allowed_extensions = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+    ext = Path(filename).suffix.lower()
+    if ext not in allowed_extensions:
+        return JSONResponse(content={"code": 400, "error": "Invalid file type"}, status_code=400)
+
+    filepath = VISION_DATA_DIR / filename
+    if not filepath.exists():
+        return JSONResponse(content={"code": 404, "error": "File not found"}, status_code=404)
+
+    media_type = {
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".webp": "image/webp",
+        ".gif": "image/gif",
+    }.get(ext, "application/octet-stream")
+
+    return FileResponse(filepath, media_type=media_type)
 
 @app.get('/health')
 async def health():
