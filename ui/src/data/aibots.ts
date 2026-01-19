@@ -26,6 +26,7 @@ export interface AIBotModelOption {
   value: string
   label: string
   support_mcp: boolean
+  support_vision: boolean
 }
 
 interface AIBotDefinition {
