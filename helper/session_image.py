@@ -1,7 +1,7 @@
 """
-History Image Processing Module
+Session Image Processing Module
 
-Handles caching of historical images and replacing them with placeholders
+Handles caching of session images and replacing them with placeholders
 to reduce token usage while allowing AI to retrieve them on demand.
 """
 
@@ -14,10 +14,10 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 logger = logging.getLogger("ai")
 
 # Cache TTL: 2 hours
-HISTORY_IMAGE_TTL = 7200
+SESSION_IMAGE_TTL = 7200
 
 # Placeholder pattern
-PLACEHOLDER_PATTERN = re.compile(r"\[Picture:history_([a-f0-9]{32})\]")
+PLACEHOLDER_PATTERN = re.compile(r"\[picture:session_([a-f0-9]{32})\]")
 
 
 def extract_base64_and_mime(data_url: str) -> Optional[Tuple[str, str]]:
@@ -112,13 +112,13 @@ async def replace_images_with_placeholders(
         md5_hash = hashlib.md5(base64_data.encode()).hexdigest()
 
         # Cache the image data
-        cache_key = f"history_image_{md5_hash}"
+        cache_key = f"session_image_{md5_hash}"
         cache_value = json.dumps({"data": base64_data, "mime_type": mime_type})
 
         try:
-            await redis_manager.set_cache(cache_key, cache_value, ex=HISTORY_IMAGE_TTL)
+            await redis_manager.set_cache(cache_key, cache_value, ex=SESSION_IMAGE_TTL)
         except Exception as e:
-            logger.warning(f"Failed to cache history image: {e}")
+            logger.warning(f"Failed to cache session image: {e}")
             # Fallback: keep original image
             new_content.append(item)
             continue
@@ -126,17 +126,17 @@ async def replace_images_with_placeholders(
         # Replace with placeholder
         new_content.append({
             "type": "text",
-            "text": f"[Picture:history_{md5_hash}]"
+            "text": f"[picture:session_{md5_hash}]"
         })
 
     return new_content
 
 
-async def process_history_images(
+async def process_session_images(
     messages: List[Any],
     redis_manager: Any,
 ) -> List[Any]:
-    """Process messages to replace historical images with placeholders.
+    """Process messages to replace session images with placeholders.
 
     The last human message keeps its images intact. All other human messages
     have their images replaced with placeholders.
@@ -146,7 +146,7 @@ async def process_history_images(
         redis_manager: Redis manager instance for caching
 
     Returns:
-        Processed messages with historical images replaced
+        Processed messages with session images replaced
     """
     if not messages:
         return messages

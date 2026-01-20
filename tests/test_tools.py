@@ -3,8 +3,8 @@ import pytest
 import json
 
 
-class TestGetHistoryImageTool:
-    """Tests for GetHistoryImageTool."""
+class TestGetSessionImageTool:
+    """Tests for GetSessionImageTool."""
 
     @pytest.fixture
     def mock_redis(self, mocker):
@@ -15,7 +15,7 @@ class TestGetHistoryImageTool:
     @pytest.mark.asyncio
     async def test_get_existing_image(self, mock_redis, mocker):
         """Should return image content block for existing image."""
-        from helper.tools import GetHistoryImageTool
+        from helper.tools import GetSessionImageTool
 
         cached_data = json.dumps({
             "data": "abc123base64data",
@@ -23,7 +23,7 @@ class TestGetHistoryImageTool:
         })
         mock_redis.get_cache = mocker.AsyncMock(return_value=cached_data)
 
-        tool = GetHistoryImageTool(redis_manager=mock_redis)
+        tool = GetSessionImageTool(redis_manager=mock_redis)
         result = await tool._arun(image_md5="abc123def456")
 
         content, artifact = result
@@ -34,9 +34,9 @@ class TestGetHistoryImageTool:
         assert artifact is None
 
     @pytest.mark.asyncio
-    async def test_get_image_with_history_prefix(self, mock_redis, mocker):
-        """Should handle image_md5 with history_ prefix."""
-        from helper.tools import GetHistoryImageTool
+    async def test_get_image_with_session_prefix(self, mock_redis, mocker):
+        """Should handle image_md5 with session_ prefix."""
+        from helper.tools import GetSessionImageTool
 
         cached_data = json.dumps({
             "data": "imagedata",
@@ -44,19 +44,19 @@ class TestGetHistoryImageTool:
         })
         mock_redis.get_cache = mocker.AsyncMock(return_value=cached_data)
 
-        tool = GetHistoryImageTool(redis_manager=mock_redis)
-        await tool._arun(image_md5="history_abc123def456")
+        tool = GetSessionImageTool(redis_manager=mock_redis)
+        await tool._arun(image_md5="session_abc123def456")
 
-        mock_redis.get_cache.assert_called_with("history_image_abc123def456")
+        mock_redis.get_cache.assert_called_with("session_image_abc123def456")
 
     @pytest.mark.asyncio
     async def test_image_not_found(self, mock_redis, mocker):
         """Should return error message for non-existent image."""
-        from helper.tools import GetHistoryImageTool
+        from helper.tools import GetSessionImageTool
 
         mock_redis.get_cache = mocker.AsyncMock(return_value="")
 
-        tool = GetHistoryImageTool(redis_manager=mock_redis)
+        tool = GetSessionImageTool(redis_manager=mock_redis)
         result = await tool._arun(image_md5="nonexistent123")
 
         content, artifact = result
@@ -67,9 +67,9 @@ class TestGetHistoryImageTool:
     @pytest.mark.asyncio
     async def test_invalid_image_md5(self, mock_redis):
         """Should return error for invalid image_md5."""
-        from helper.tools import GetHistoryImageTool
+        from helper.tools import GetSessionImageTool
 
-        tool = GetHistoryImageTool(redis_manager=mock_redis)
+        tool = GetSessionImageTool(redis_manager=mock_redis)
         result = await tool._arun(image_md5="short")
 
         content, artifact = result
@@ -78,12 +78,12 @@ class TestGetHistoryImageTool:
 
     def test_tool_metadata(self, mock_redis):
         """Should have correct metadata."""
-        from helper.tools import GetHistoryImageTool
+        from helper.tools import GetSessionImageTool
 
-        tool = GetHistoryImageTool(redis_manager=mock_redis)
+        tool = GetSessionImageTool(redis_manager=mock_redis)
 
-        assert tool.name == "get_history_image"
-        assert "历史" in tool.description
+        assert tool.name == "get_session_image"
+        assert "会话" in tool.description
         assert tool.response_format == "content_and_artifact"
 
 
@@ -99,4 +99,4 @@ class TestLoadBuiltinToolsIntegration:
 
         assert isinstance(tools, list)
         assert len(tools) >= 1
-        assert tools[0].name == "get_history_image"
+        assert tools[0].name == "get_session_image"

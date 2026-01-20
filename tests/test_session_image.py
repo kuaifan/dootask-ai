@@ -1,4 +1,4 @@
-# tests/test_history_image.py
+# tests/test_session_image.py
 import pytest
 
 
@@ -7,7 +7,7 @@ class TestExtractBase64AndMime:
 
     def test_extract_jpeg_image(self):
         """Should extract base64 data and mime type from JPEG data URL."""
-        from helper.history_image import extract_base64_and_mime
+        from helper.session_image import extract_base64_and_mime
 
         data_url = "data:image/jpeg;base64,/9j/4AAQSkZJRg=="
         base64_data, mime_type = extract_base64_and_mime(data_url)
@@ -17,7 +17,7 @@ class TestExtractBase64AndMime:
 
     def test_extract_png_image(self):
         """Should extract base64 data and mime type from PNG data URL."""
-        from helper.history_image import extract_base64_and_mime
+        from helper.session_image import extract_base64_and_mime
 
         data_url = "data:image/png;base64,iVBORw0KGgo="
         base64_data, mime_type = extract_base64_and_mime(data_url)
@@ -27,7 +27,7 @@ class TestExtractBase64AndMime:
 
     def test_invalid_data_url_returns_none(self):
         """Should return None for invalid data URLs."""
-        from helper.history_image import extract_base64_and_mime
+        from helper.session_image import extract_base64_and_mime
 
         result = extract_base64_and_mime("https://example.com/image.jpg")
         assert result is None
@@ -41,7 +41,7 @@ class TestFindLastHumanIndex:
 
     def test_find_last_human_in_list(self):
         """Should find the index of the last human message."""
-        from helper.history_image import find_last_human_index
+        from helper.session_image import find_last_human_index
 
         messages = [
             {"type": "human", "content": "first"},
@@ -53,7 +53,7 @@ class TestFindLastHumanIndex:
 
     def test_find_last_human_at_end(self):
         """Should find human message at the end."""
-        from helper.history_image import find_last_human_index
+        from helper.session_image import find_last_human_index
 
         messages = [
             {"type": "human", "content": "first"},
@@ -64,7 +64,7 @@ class TestFindLastHumanIndex:
 
     def test_no_human_messages(self):
         """Should return -1 when no human messages exist."""
-        from helper.history_image import find_last_human_index
+        from helper.session_image import find_last_human_index
 
         messages = [
             {"type": "assistant", "content": "response"},
@@ -74,13 +74,13 @@ class TestFindLastHumanIndex:
 
     def test_empty_list(self):
         """Should return -1 for empty list."""
-        from helper.history_image import find_last_human_index
+        from helper.session_image import find_last_human_index
 
         assert find_last_human_index([]) == -1
 
     def test_tuple_format_messages(self):
         """Should handle tuple format messages."""
-        from helper.history_image import find_last_human_index
+        from helper.session_image import find_last_human_index
 
         messages = [
             ("human", "first"),
@@ -103,7 +103,7 @@ class TestReplaceImagesWithPlaceholders:
     @pytest.mark.asyncio
     async def test_replace_single_image(self, mock_redis):
         """Should replace a single image with placeholder."""
-        from helper.history_image import replace_images_with_placeholders
+        from helper.session_image import replace_images_with_placeholders
 
         content = [
             {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,abc123"}},
@@ -114,14 +114,14 @@ class TestReplaceImagesWithPlaceholders:
 
         assert len(result) == 2
         assert result[0]["type"] == "text"
-        assert result[0]["text"].startswith("[Picture:history_")
+        assert result[0]["text"].startswith("[picture:session_")
         assert result[1] == {"type": "text", "text": "What is this?"}
         mock_redis.set_cache.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_preserve_non_base64_images(self, mock_redis):
         """Should preserve images that are not base64 encoded."""
-        from helper.history_image import replace_images_with_placeholders
+        from helper.session_image import replace_images_with_placeholders
 
         content = [
             {"type": "image_url", "image_url": {"url": "https://example.com/image.jpg"}},
@@ -137,7 +137,7 @@ class TestReplaceImagesWithPlaceholders:
     @pytest.mark.asyncio
     async def test_string_content_unchanged(self, mock_redis):
         """Should return string content unchanged."""
-        from helper.history_image import replace_images_with_placeholders
+        from helper.session_image import replace_images_with_placeholders
 
         content = "Just a text message"
 
@@ -149,7 +149,7 @@ class TestReplaceImagesWithPlaceholders:
     @pytest.mark.asyncio
     async def test_cache_stores_correct_data(self, mock_redis):
         """Should store base64 and mime type in cache."""
-        from helper.history_image import replace_images_with_placeholders
+        from helper.session_image import replace_images_with_placeholders
         import hashlib
         import json
 
@@ -162,15 +162,15 @@ class TestReplaceImagesWithPlaceholders:
 
         expected_md5 = hashlib.md5(base64_data.encode()).hexdigest()
         call_args = mock_redis.set_cache.call_args
-        assert call_args[0][0] == f"history_image_{expected_md5}"
+        assert call_args[0][0] == f"session_image_{expected_md5}"
         cached_data = json.loads(call_args[0][1])
         assert cached_data["data"] == base64_data
         assert cached_data["mime_type"] == "image/png"
         assert call_args[1]["ex"] == 7200  # 2 hours
 
 
-class TestProcessHistoryImages:
-    """Tests for process_history_images function."""
+class TestProcessSessionImages:
+    """Tests for process_session_images function."""
 
     @pytest.fixture
     def mock_redis(self, mocker):
@@ -182,7 +182,7 @@ class TestProcessHistoryImages:
     @pytest.mark.asyncio
     async def test_replace_only_historical_images(self, mock_redis):
         """Should replace images only in historical messages, not the last human message."""
-        from helper.history_image import process_history_images
+        from helper.session_image import process_session_images
 
         messages = [
             {"type": "human", "content": [
@@ -196,11 +196,11 @@ class TestProcessHistoryImages:
             ]},
         ]
 
-        result = await process_history_images(messages, mock_redis)
+        result = await process_session_images(messages, mock_redis)
 
         # First human message should have placeholder
         assert result[0]["content"][0]["type"] == "text"
-        assert "[Picture:history_" in result[0]["content"][0]["text"]
+        assert "[picture:session_" in result[0]["content"][0]["text"]
 
         # Last human message should keep original image
         assert result[2]["content"][0]["type"] == "image_url"
@@ -208,7 +208,7 @@ class TestProcessHistoryImages:
     @pytest.mark.asyncio
     async def test_single_human_message_unchanged(self, mock_redis):
         """Should not replace images when there's only one human message."""
-        from helper.history_image import process_history_images
+        from helper.session_image import process_session_images
 
         messages = [
             {"type": "human", "content": [
@@ -217,7 +217,7 @@ class TestProcessHistoryImages:
             ]},
         ]
 
-        result = await process_history_images(messages, mock_redis)
+        result = await process_session_images(messages, mock_redis)
 
         # Should keep original image
         assert result[0]["content"][0]["type"] == "image_url"
@@ -226,7 +226,7 @@ class TestProcessHistoryImages:
     @pytest.mark.asyncio
     async def test_no_images_unchanged(self, mock_redis):
         """Should return messages unchanged when there are no images."""
-        from helper.history_image import process_history_images
+        from helper.session_image import process_session_images
 
         messages = [
             {"type": "human", "content": "Hello"},
@@ -234,7 +234,7 @@ class TestProcessHistoryImages:
             {"type": "human", "content": "How are you?"},
         ]
 
-        result = await process_history_images(messages, mock_redis)
+        result = await process_session_images(messages, mock_redis)
 
         assert result == messages
         mock_redis.set_cache.assert_not_called()
@@ -242,7 +242,7 @@ class TestProcessHistoryImages:
     @pytest.mark.asyncio
     async def test_tuple_format_messages(self, mock_redis):
         """Should handle tuple format messages."""
-        from helper.history_image import process_history_images
+        from helper.session_image import process_session_images
 
         messages = [
             ("human", [
@@ -256,11 +256,11 @@ class TestProcessHistoryImages:
             ]),
         ]
 
-        result = await process_history_images(messages, mock_redis)
+        result = await process_session_images(messages, mock_redis)
 
         # First human message should have placeholder
         assert result[0][1][0]["type"] == "text"
-        assert "[Picture:history_" in result[0][1][0]["text"]
+        assert "[picture:session_" in result[0][1][0]["text"]
 
         # Last human message should keep original image
         assert result[2][1][0]["type"] == "image_url"

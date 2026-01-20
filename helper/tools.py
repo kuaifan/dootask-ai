@@ -14,24 +14,24 @@ from pydantic import BaseModel, ConfigDict, Field
 logger = logging.getLogger("ai")
 
 
-class GetHistoryImageInput(BaseModel):
-    """Input schema for get_history_image tool."""
+class GetSessionImageInput(BaseModel):
+    """Input schema for get_session_image tool."""
 
     image_md5: str = Field(
-        description="The MD5 hash of the history image (from [Picture:history_xxx] placeholder)"
+        description="The MD5 hash of the session image (from [picture:session_xxx] placeholder)"
     )
 
 
-class GetHistoryImageTool(BaseTool):
-    """Tool for retrieving historical images from cache."""
+class GetSessionImageTool(BaseTool):
+    """Tool for retrieving session images from cache."""
 
-    name: str = "get_history_image"
-    description: str = """获取历史对话中用户上传的图片。
-当用户询问历史图片的细节（如"刚才那张图的右上角是什么"）时，
+    name: str = "get_session_image"
+    description: str = """获取当前会话中用户上传的图片。
+当用户询问会话中图片的细节（如"刚才那张图的右上角是什么"）时，
 使用此工具获取图片内容进行分析。
-输入参数为图片的 MD5 哈希值（从 [Picture:history_xxx] 占位符中提取）。"""
+输入参数为图片的 MD5 哈希值（从 [picture:session_xxx] 占位符中提取）。"""
 
-    args_schema: Type[BaseModel] = GetHistoryImageInput
+    args_schema: Type[BaseModel] = GetSessionImageInput
     response_format: str = "content_and_artifact"
 
     redis_manager: Any = Field(exclude=True)
@@ -43,10 +43,10 @@ class GetHistoryImageTool(BaseTool):
         raise NotImplementedError("Use async version")
 
     async def _arun(self, image_md5: str) -> tuple:
-        """Retrieve a historical image from cache.
+        """Retrieve a session image from cache.
 
         Args:
-            image_md5: MD5 hash of the image (with or without 'history_' prefix)
+            image_md5: MD5 hash of the image (with or without 'session_' prefix)
 
         Returns:
             Tuple of (content_blocks, artifact)
@@ -55,18 +55,18 @@ class GetHistoryImageTool(BaseTool):
         if not image_md5 or len(image_md5) < 8:
             return ([{"type": "text", "text": "无效的图片标识符"}], None)
 
-        # Normalize key (support with or without history_ prefix)
-        if image_md5.startswith("history_"):
+        # Normalize key (support with or without session_ prefix)
+        if image_md5.startswith("session_"):
             md5_hash = image_md5[8:]
         else:
             md5_hash = image_md5
 
         # Retrieve from cache
-        cache_key = f"history_image_{md5_hash}"
+        cache_key = f"session_image_{md5_hash}"
         try:
             cached = await self.redis_manager.get_cache(cache_key)
         except Exception as e:
-            logger.error(f"Failed to get history image: {e}")
+            logger.error(f"Failed to get session image: {e}")
             return ([{"type": "text", "text": f"获取图片失败: {e}"}], None)
 
         if not cached:
@@ -78,7 +78,7 @@ class GetHistoryImageTool(BaseTool):
             base64_data = cache_data["data"]
             mime_type = cache_data.get("mime_type", "image/jpeg")
         except (json.JSONDecodeError, KeyError) as e:
-            logger.error(f"Invalid cache data for history image: {e}")
+            logger.error(f"Invalid cache data for session image: {e}")
             return ([{"type": "text", "text": "图片数据格式错误"}], None)
 
         # Return multimodal content
@@ -99,5 +99,5 @@ def load_builtin_tools(redis_manager: Any) -> List[BaseTool]:
         List of built-in tools
     """
     return [
-        GetHistoryImageTool(redis_manager=redis_manager)
+        GetSessionImageTool(redis_manager=redis_manager)
     ]

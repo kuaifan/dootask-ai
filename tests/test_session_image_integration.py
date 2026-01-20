@@ -1,12 +1,12 @@
-# tests/test_history_image_integration.py
-"""Integration tests for history image processing."""
+# tests/test_session_image_integration.py
+"""Integration tests for session image processing."""
 import re
 
 import pytest
 
 
-class TestHistoryImageIntegration:
-    """Integration tests for the complete history image flow."""
+class TestSessionImageIntegration:
+    """Integration tests for the complete session image flow."""
 
     @pytest.fixture
     def mock_redis(self, mocker):
@@ -28,8 +28,8 @@ class TestHistoryImageIntegration:
     @pytest.mark.asyncio
     async def test_full_flow_process_then_retrieve(self, mock_redis):
         """Should be able to process images and then retrieve them."""
-        from helper.history_image import process_history_images
-        from helper.tools import GetHistoryImageTool
+        from helper.session_image import process_session_images
+        from helper.tools import GetSessionImageTool
 
         # Simulate a conversation with images
         messages = [
@@ -45,16 +45,16 @@ class TestHistoryImageIntegration:
         ]
 
         # Process messages
-        processed = await process_history_images(messages, mock_redis)
+        processed = await process_session_images(messages, mock_redis)
 
         # Extract MD5 from placeholder
         placeholder = processed[0]["content"][0]["text"]
-        match = re.search(r"\[Picture:history_([a-f0-9]+)\]", placeholder)
+        match = re.search(r"\[picture:session_([a-f0-9]+)\]", placeholder)
         assert match, f"No placeholder found in: {placeholder}"
         md5_hash = match.group(1)
 
         # Retrieve using tool
-        tool = GetHistoryImageTool(redis_manager=mock_redis)
+        tool = GetSessionImageTool(redis_manager=mock_redis)
         result = await tool._arun(image_md5=md5_hash)
 
         content, artifact = result
@@ -65,12 +65,12 @@ class TestHistoryImageIntegration:
     @pytest.mark.asyncio
     async def test_expired_image_returns_error(self, mock_redis, mocker):
         """Should return error when image has expired."""
-        from helper.tools import GetHistoryImageTool
+        from helper.tools import GetSessionImageTool
 
         # Simulate expired cache (returns empty)
         mock_redis.get_cache = mocker.AsyncMock(return_value="")
 
-        tool = GetHistoryImageTool(redis_manager=mock_redis)
+        tool = GetSessionImageTool(redis_manager=mock_redis)
         result = await tool._arun(image_md5="expiredmd5hash12345678901234")
 
         content, _ = result

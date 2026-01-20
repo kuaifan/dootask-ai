@@ -54,7 +54,7 @@ from helper.vision import (
     save_vision_config,
     process_vision_content,
 )
-from helper.history_image import process_history_images
+from helper.session_image import process_session_images
 from helper.config import VISION_DATA_DIR
 
 # 日志配置
@@ -365,10 +365,10 @@ async def stream(msg_id: str, stream_key: str):
             # 处理历史图片（替换中间上下文中的图片为占位符）
             try:
                 middle_dicts = [message_to_dict(m) for m in middle_messages]
-                processed_middle = await process_history_images(middle_dicts, redis_manager)
+                processed_middle = await process_session_images(middle_dicts, redis_manager)
                 middle_messages = [dict_to_message(d) for d in processed_middle]
             except Exception as e:
-                logger.warning("Failed to process history images in stream: %s", e)
+                logger.warning("Failed to process session images in stream: %s", e)
 
             # 添加用户的新消息
             end_context = [HumanMessage(content=data["text"])]
@@ -708,13 +708,13 @@ async def invoke_stream(request: Request, stream_key: str):
     # 处理历史图片（替换为占位符，缓存到 Redis）
     try:
         context_as_dicts = [message_to_dict(msg) for msg in parsed_context]
-        processed_dicts = await process_history_images(
+        processed_dicts = await process_session_images(
             context_as_dicts,
             app.state.redis_manager
         )
         parsed_context = [dict_to_message(d) for d in processed_dicts]
     except Exception as e:
-        logger.warning("Failed to process history images, using original context: %s", e)
+        logger.warning("Failed to process session images, using original context: %s", e)
 
     # 处理上下文中的图片内容
     vision_config = load_vision_config()
