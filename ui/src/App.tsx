@@ -17,14 +17,18 @@ import { BotCard } from "@/components/aibot/BotCard"
 import { BotSettingsSheet } from "@/components/aibot/BotSettingsSheet"
 import { MCPListCard } from "@/components/aibot/MCPListCard"
 import { MCPEditorSheet } from "@/components/aibot/MCPEditorSheet"
+import { VisionConfigCard } from "@/components/aibot/VisionConfigCard"
+import { VisionEditorSheet } from "@/components/aibot/VisionEditorSheet"
 import type { AIBotItem, AIBotKey } from "@/data/aibots"
 import { createLocalizedAIBotList } from "@/data/aibots"
 import { getAISystemConfig, type SystemConfig } from "@/data/aibot-config"
 import type { MCPConfig } from "@/data/mcp-config"
+import { type VisionConfig, DEFAULT_VISION_CONFIG } from "@/data/vision-config"
 import { mergeFields, parseModelNames } from "@/lib/aibot"
 import type { GeneratedField } from "@/lib/aibot"
 import { useI18n } from "@/lib/i18n-context"
 import { loadMCPConfigs, saveMCPConfig, deleteMCPConfig } from "@/lib/mcp-storage"
+import { loadVisionConfig, saveVisionConfig } from "@/lib/vision-storage"
 
 type SettingsState = Record<AIBotKey, Record<string, string>>
 type LoadingState = Record<AIBotKey, boolean>
@@ -91,8 +95,12 @@ function App() {
   const [editingMcp, setEditingMcp] = useState<MCPConfig | null>(null)
   const [safeAreaReady, setSafeAreaReady] = useState(false)
 
+  const [visionConfig, setVisionConfig] = useState<VisionConfig>(DEFAULT_VISION_CONFIG)
+  const [visionEditorOpen, setVisionEditorOpen] = useState(false)
+
   const settingsOpenRef = useRef(settingsOpen)
   const mcpEditorOpenRef = useRef(mcpEditorOpen)
+  const visionEditorOpenRef = useRef(visionEditorOpen)
   const interceptReleaseRef = useRef<(() => void) | null>(null)
   const modelEditorBackHandlerRef = useRef<() => boolean>(() => false)
 
@@ -105,6 +113,10 @@ function App() {
   useEffect(() => {
     mcpEditorOpenRef.current = mcpEditorOpen
   }, [mcpEditorOpen])
+
+  useEffect(() => {
+    visionEditorOpenRef.current = visionEditorOpen
+  }, [visionEditorOpen])
 
   useEffect(() => {
     setBots((prev) => createLocalizedAIBotList(lang, prev))
@@ -162,6 +174,7 @@ function App() {
 
       await refreshBotTags()
       await loadMcps()
+      await loadVision()
     }
 
     init().catch((error) => {
@@ -175,6 +188,15 @@ function App() {
       setMcps(configs)
     } catch (error) {
       console.error("Failed to load MCP configs", error)
+    }
+  }
+
+  const loadVision = async () => {
+    try {
+      const config = await loadVisionConfig()
+      setVisionConfig(config)
+    } catch (error) {
+      console.error("Failed to load vision config", error)
     }
   }
 
@@ -266,6 +288,10 @@ function App() {
         if (modelEditorBackHandlerRef.current && modelEditorBackHandlerRef.current()) {
           return true
         }
+        if (visionEditorOpenRef.current) {
+          setVisionEditorOpen(false)
+          return true
+        }
         if (mcpEditorOpenRef.current) {
           setMcpEditorOpen(false)
           return true
@@ -298,12 +324,12 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (isAdmin && (settingsOpen || mcpEditorOpen)) {
+    if (isAdmin && (settingsOpen || mcpEditorOpen || visionEditorOpen)) {
       void ensureIntercept()
-    } else if (!settingsOpen && !mcpEditorOpen) {
+    } else if (!settingsOpen && !mcpEditorOpen && !visionEditorOpen) {
       releaseIntercept()
     }
-  }, [ensureIntercept, isAdmin, releaseIntercept, settingsOpen, mcpEditorOpen])
+  }, [ensureIntercept, isAdmin, releaseIntercept, settingsOpen, mcpEditorOpen, visionEditorOpen])
 
   useEffect(() => {
     return () => {
@@ -500,6 +526,24 @@ function App() {
     }
   }
 
+  const handleEditVision = () => {
+    if (!isAdmin) {
+      messageError(t("errors.adminOnly"))
+      return
+    }
+    setVisionEditorOpen(true)
+  }
+
+  const handleSaveVision = async (config: VisionConfig) => {
+    try {
+      await saveVisionConfig(config)
+      setVisionConfig(config)
+      messageSuccess(t("success.save"))
+    } catch (error) {
+      messageError(resolveErrorMessage(error, t("errors.submitFailed")))
+    }
+  }
+
   if (!safeAreaReady) {
     return (
       <div className="fixed inset-0 flex items-center justify-center z-50 bg-background">
@@ -536,13 +580,18 @@ function App() {
           )}
         </section>
         {isAdmin && (
-          <section>
+          <section className="space-y-6">
             <MCPListCard
               mcps={mcps}
               bots={bots}
               onAdd={handleAddMcp}
               onEdit={handleEditMcp}
               onDelete={handleDeleteMcp}
+            />
+            <VisionConfigCard
+              config={visionConfig}
+              onEdit={handleEditVision}
+              t={t}
             />
           </section>
         )}
@@ -574,6 +623,14 @@ function App() {
             mcp={editingMcp}
             bots={bots}
             onSave={handleSaveMcp}
+          />
+          <VisionEditorSheet
+            open={visionEditorOpen}
+            onOpenChange={setVisionEditorOpen}
+            config={visionConfig}
+            onSave={handleSaveVision}
+            aiBots={bots}
+            t={t}
           />
         </>
       )}
