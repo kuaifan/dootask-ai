@@ -292,6 +292,7 @@ async def stream(msg_id: str, stream_key: str):
         data.get("model_name", ""),
         dootask_available=dootask_available,
         token_candidates=[data.get("msg_user_token"), data.get("token")],
+        redis_manager=app.state.redis_manager,
     )
     async def stream_generate(msg_id, msg_key, data, redis_manager):
         """
@@ -360,6 +361,15 @@ async def stream(msg_id: str, stream_key: str):
             middle_messages = []
             if middle_context:
                 middle_messages = [dict_to_message(msg_dict) for msg_dict in middle_context]
+
+            # 处理历史图片（替换中间上下文中的图片为占位符）
+            try:
+                middle_dicts = [message_to_dict(m) for m in middle_messages]
+                processed_middle = await process_history_images(middle_dicts, redis_manager)
+                middle_messages = [dict_to_message(d) for d in processed_middle]
+            except Exception as e:
+                logger.warning("Failed to process history images in stream: %s", e)
+
             # 添加用户的新消息
             end_context = [HumanMessage(content=data["text"])]
             # 处理模型限制
