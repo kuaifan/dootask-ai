@@ -276,10 +276,40 @@ def model_limit(model_type: str, model_name: str) -> int:
 # Token 计数
 # =============================================================================
 
-def count_tokens(text: str, model_type: str, model_name: str) -> int:
-    """计算文本的 token 数量"""
+def count_tokens(text, model_type: str, model_name: str) -> int:
+    """计算文本或多模态内容的 token 数量
+
+    Args:
+        text: 文本字符串或多模态内容列表
+        model_type: 模型类型
+        model_name: 模型名称
+
+    Returns:
+        token 数量
+    """
     if not text:
         return 0
+
+    # 处理多模态内容（列表格式）
+    if isinstance(text, list):
+        total_tokens = 0
+        for item in text:
+            if isinstance(item, dict):
+                item_type = item.get("type", "")
+                if item_type == "text":
+                    # 文本内容，递归计算
+                    total_tokens += count_tokens(item.get("text", ""), model_type, model_name)
+                elif item_type == "image_url":
+                    # 图片内容，使用估算值（低分辨率约 85 tokens，高分辨率更多）
+                    # 由于前端已压缩到 1024px，使用 765 tokens 作为合理估算
+                    total_tokens += 765
+            elif isinstance(item, str):
+                total_tokens += count_tokens(item, model_type, model_name)
+        return total_tokens
+
+    # 确保是字符串
+    if not isinstance(text, str):
+        text = str(text)
 
     # 默认使用 cl100k_base 编码
     encoding_name = "cl100k_base"
