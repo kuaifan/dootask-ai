@@ -226,6 +226,7 @@ async def load_mcp_tools_for_model(
     *,
     dootask_available: bool,
     token_candidates: List[Optional[str]],
+    redis_manager: Optional[Any] = None,
 ) -> List[object]:
     """根据配置文件加载与当前模型匹配的 MCP 工具列表。"""
     try:
@@ -269,12 +270,21 @@ async def load_mcp_tools_for_model(
         server_configs[server_key] = config
 
     if not server_configs:
-        return []
+        mcp_tools = []
+    else:
+        client = MultiServerMCPClient(server_configs)
+        try:
+            mcp_tools = await client.get_tools()
+        except Exception as exc:
+            logger.error("Failed to load MCP tools: %s", exc)
+            mcp_tools = []
 
-    client = MultiServerMCPClient(server_configs)
-    try:
-        tools = await client.get_tools()
-        return [_wrap_tool_with_error_handling(tool) for tool in tools]
-    except Exception as exc:
-        logger.error("Failed to load MCP tools: %s", exc)
-        return []
+    # Load built-in tools if redis_manager provided
+    builtin_tools = []
+    if redis_manager is not None:
+        from helper.tools import load_builtin_tools
+        builtin_tools = load_builtin_tools(redis_manager)
+
+    # Combine and wrap all tools
+    all_tools = list(mcp_tools) + builtin_tools
+    return [_wrap_tool_with_error_handling(tool) for tool in all_tools]

@@ -85,3 +85,18 @@ class TestGetHistoryImageTool:
         assert tool.name == "get_history_image"
         assert "历史" in tool.description
         assert tool.response_format == "content_and_artifact"
+
+
+class TestLoadBuiltinToolsIntegration:
+    """Tests for load_builtin_tools integration."""
+
+    def test_load_builtin_tools_returns_list(self, mocker):
+        """Should return a list of tools."""
+        from helper.tools import load_builtin_tools
+
+        mock_redis = mocker.AsyncMock()
+        tools = load_builtin_tools(mock_redis)
+
+        assert isinstance(tools, list)
+        assert len(tools) >= 1
+        assert tools[0].name == "get_history_image"
