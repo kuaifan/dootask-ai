@@ -222,13 +222,43 @@ def clean_messages_for_ai(messages: list) -> list:
     """
     清理消息列表，移除工具调用标记。
     在发送给 AI 之前调用，确保 AI 不会看到工具调用标记。
+    支持字符串和多模态列表格式的内容。
     """
     cleaned = []
     for msg in messages:
-        if hasattr(msg, 'content') and isinstance(msg.content, str) and '</tool-use>' in msg.content:
-            cleaned_content = TOOL_CALL_PATTERN.sub('', msg.content)
-            msg_class = type(msg)
-            cleaned.append(msg_class(content=cleaned_content))
+        if not hasattr(msg, 'content'):
+            cleaned.append(msg)
+            continue
+
+        content = msg.content
+        if isinstance(content, str):
+            # 字符串内容
+            if '</tool-use>' in content:
+                cleaned_content = TOOL_CALL_PATTERN.sub('', content)
+                cleaned.append(type(msg)(content=cleaned_content))
+            else:
+                cleaned.append(msg)
+        elif isinstance(content, list):
+            # 多模态列表内容
+            has_tool_marker = False
+            cleaned_items = []
+            for item in content:
+                if isinstance(item, dict) and item.get("type") == "text":
+                    text = item.get("text", "")
+                    if '</tool-use>' in text:
+                        has_tool_marker = True
+                        cleaned_items.append({
+                            "type": "text",
+                            "text": TOOL_CALL_PATTERN.sub('', text)
+                        })
+                    else:
+                        cleaned_items.append(item)
+                else:
+                    cleaned_items.append(item)
+            if has_tool_marker:
+                cleaned.append(type(msg)(content=cleaned_items))
+            else:
+                cleaned.append(msg)
         else:
             cleaned.append(msg)
     return cleaned
@@ -283,9 +313,9 @@ def remove_tool_calls(content: str | list[str | dict]) -> str | list[str | dict]
     return [
         content_item
         for content_item in content
-        if isinstance(content_item, str) or content_item["type"] != "tool_use"
+        if isinstance(content_item, str) or (isinstance(content_item, dict) and content_item.get("type") != "tool_use")
     ]
-    
+
 def convert_message_content_to_string(content: str | list[str | dict]) -> str:
     if isinstance(content, str):
         return content
@@ -294,8 +324,8 @@ def convert_message_content_to_string(content: str | list[str | dict]) -> str:
         if isinstance(content_item, str):
             text.append(content_item)
             continue
-        if content_item["type"] == "text":
-            text.append(content_item["text"])
+        if isinstance(content_item, dict) and content_item.get("type") == "text":
+            text.append(content_item.get("text", ""))
     return "".join(text)
 
 def get_reasoning_content(msg) -> str | None:
