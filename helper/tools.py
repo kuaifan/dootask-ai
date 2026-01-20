@@ -17,19 +17,21 @@ logger = logging.getLogger("ai")
 class GetSessionImageInput(BaseModel):
     """Input schema for get_session_image tool."""
 
-    image_md5: str = Field(
-        description="The MD5 hash of the session image (from [picture:session_xxx] placeholder)"
-    )
+    image_md5: str = Field(description="图片 MD5，从 [picture:session_{md5}] 中提取")
 
 
 class GetSessionImageTool(BaseTool):
     """Tool for retrieving session images from cache."""
 
     name: str = "get_session_image"
-    description: str = """获取当前会话中用户上传的图片。
-当用户询问会话中图片的细节（如"刚才那张图的右上角是什么"）时，
-使用此工具获取图片内容进行分析。
-输入参数为图片的 MD5 哈希值（从 [picture:session_xxx] 占位符中提取）。"""
+    description: str = """获取会话中用户上传的图片进行分析。
+
+使用场景：
+- 用户询问图片内容、细节或特定区域
+- 需要对图片进行文字识别
+- 消息中包含 [picture:session_{md5}] 占位符
+
+注意：图片有缓存时效，过期后无法获取。"""
 
     args_schema: Type[BaseModel] = GetSessionImageInput
     response_format: str = "content_and_artifact"
