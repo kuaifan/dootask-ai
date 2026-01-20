@@ -3,13 +3,13 @@ from langchain_anthropic import ChatAnthropic
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_ollama import ChatOllama
 from langchain_xai import ChatXAI
+from langchain_deepseek import ChatDeepSeek
 from langchain_community.chat_models import (
     ChatZhipuAI,
     ChatTongyi,
     QianfanChatEndpoint,
     ChatCohere
 )
-from .deepseek import DeepseekChatOpenAI
 from .request import RequestClient
 from .redis import RedisManager
 from .config import THINK_START_PATTERN, THINK_END_PATTERN, REASONING_PATTERN, TOOL_CALL_PATTERN
@@ -42,7 +42,7 @@ def get_model_instance(model_type, model_name, api_key, **kwargs):
         "gemini": (ChatGoogleGenerativeAI, {
             "google_api_key": api_key,
         }),
-        "deepseek": (DeepseekChatOpenAI, None),
+        "deepseek": (ChatDeepSeek, None),
         "zhipu": (ChatZhipuAI, None),
         "qwen": (ChatTongyi, None),
         "wenxin": (QianfanChatEndpoint, None),
@@ -297,6 +297,22 @@ def convert_message_content_to_string(content: str | list[str | dict]) -> str:
         if content_item["type"] == "text":
             text.append(content_item["text"])
     return "".join(text)
+
+def get_reasoning_content(msg) -> str | None:
+    """
+    获取消息中的 reasoning_content，兼容多种来源：
+    - 直接属性（SimpleNamespace 或自定义实现）
+    - additional_kwargs（官方 ChatDeepSeek 实现）
+    """
+    # 先检查直接属性
+    if hasattr(msg, 'reasoning_content') and msg.reasoning_content:
+        return msg.reasoning_content
+    # 再检查 additional_kwargs（官方 langchain-deepseek 实现）
+    if hasattr(msg, 'additional_kwargs'):
+        reasoning = msg.additional_kwargs.get('reasoning_content')
+        if reasoning:
+            return reasoning
+    return None
 
 # 转换为可序列化的字典格式
 def message_to_dict(message):

@@ -39,7 +39,8 @@ from helper.utils import (
     replace_think_content,
     remove_reasoning_content,
     clean_messages_for_ai,
-    process_html_content
+    process_html_content,
+    get_reasoning_content
 )
 from helper.mcp import (
     MCPConfigError,
@@ -432,11 +433,12 @@ async def stream(msg_id: str, stream_key: str):
                     if isContinue:
                         continue
 
-                if hasattr(msg, 'reasoning_content') and msg.reasoning_content and not is_response:
+                reasoning_content = get_reasoning_content(msg)
+                if reasoning_content and not is_response:
                     if not has_reasoning:
                         response += "::: reasoning\n"
                         has_reasoning = True
-                    response += convert_message_content_to_string(msg.reasoning_content)
+                    response += convert_message_content_to_string(reasoning_content)
                     response = replace_think_content(response)
                     current_time = time.time()
                     if current_time - last_cache_time >= cache_interval:
@@ -817,11 +819,12 @@ async def invoke_stream(request: Request, stream_key: str):
                     if should_continue:
                         continue
 
-                if hasattr(msg, "reasoning_content") and msg.reasoning_content and not is_response:
+                reasoning_content = get_reasoning_content(msg)
+                if reasoning_content and not is_response:
                     if not has_reasoning:
                         response_text += "::: reasoning\n"
                         has_reasoning = True
-                    response_text += msg.reasoning_content
+                    response_text += reasoning_content
                     response_text = replace_think_content(response_text)
                     
                 if hasattr(msg, "content") and msg.content:
