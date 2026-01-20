@@ -43,7 +43,7 @@ def _get_default_vision_config() -> Dict[str, Any]:
         - default_quality: Default JPEG quality for compression
     """
     return {
-        "enabled": True,
+        "enabled": False,
         "supportedModels": [],
         "maxImageSize": 2048,
         "maxFileSize": 10,
@@ -150,7 +150,7 @@ def model_in_vision_supported_list(
         config = load_vision_config()
 
     supported_models = config.get("supportedModels", [])
-    return model_name in supported_models
+    return any(m.get("id") == model_name for m in supported_models)
 
 
 def should_use_vision_directly(

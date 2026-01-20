@@ -845,13 +845,13 @@ async def invoke_stream(request: Request, stream_key: str):
 
             data["status"] = "finished"
             data["response"] = response_text
-            app.state.redis_manager.set_input(storage_key, data)
+            await app.state.redis_manager.set_input(storage_key, data)
             yield f"id: {stream_key}\nevent: done\ndata: {json_empty()}\n\n"
         except Exception as exc:
             data["status"] = "finished"
             data["response"] = response_text or str(exc)
             data["error"] = str(exc)
-            app.state.redis_manager.set_input(storage_key, data)
+            await app.state.redis_manager.set_input(storage_key, data)
             yield f"id: {stream_key}\nevent: done\ndata: {json_error(str(exc))}\n\n"
     return StreamingResponse(
         stream_invoke_response(),
