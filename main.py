@@ -695,15 +695,16 @@ async def invoke_stream(request: Request, stream_key: str):
             media_type='text/event-stream'
         )
 
-    # 处理历史图片（替换为占位符）
-    # Convert LangChain messages to dict format for processing
-    context_as_dicts = [message_to_dict(msg) for msg in parsed_context]
-    processed_dicts = await process_history_images(
-        context_as_dicts,
-        app.state.redis_manager
-    )
-    # Convert back to LangChain messages
-    parsed_context = [dict_to_message(d) for d in processed_dicts]
+    # 处理历史图片（替换为占位符，缓存到 Redis）
+    try:
+        context_as_dicts = [message_to_dict(msg) for msg in parsed_context]
+        processed_dicts = await process_history_images(
+            context_as_dicts,
+            app.state.redis_manager
+        )
+        parsed_context = [dict_to_message(d) for d in processed_dicts]
+    except Exception as e:
+        logger.warning("Failed to process history images, using original context: %s", e)
 
     # 处理上下文中的图片内容
     vision_config = load_vision_config()
