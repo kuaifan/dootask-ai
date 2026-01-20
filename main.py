@@ -48,9 +48,9 @@ from helper.mcp import (
     load_mcp_tools_for_model,
 )
 from helper.vision import (
+    VisionConfigError,
     load_vision_config,
     save_vision_config,
-    collect_vision_capable_models,
     process_vision_content,
 )
 from helper.config import VISION_DATA_DIR
@@ -909,10 +909,10 @@ async def get_mcp_config():
     """获取MCP配置列表"""
     try:
         data = load_mcp_config_data()
-        return JSONResponse(content=data, status_code=200)
+        return JSONResponse(content={"code": 200, "data": data})
     except MCPConfigError as exc:
         logger.error(f"Failed to read MCP config: {exc}")
-        return JSONResponse(content={"error": "Failed to read MCP config"}, status_code=500)
+        return JSONResponse(content={"code": 500, "error": "Failed to read MCP config"}, status_code=500)
 
 @app.post('/mcp/config')
 async def save_mcp_config(request: Request):
@@ -920,41 +920,35 @@ async def save_mcp_config(request: Request):
     try:
         data = await request.json()
         if not isinstance(data, dict):
-            raise ValueError("Invalid payload")
+            return JSONResponse(content={"code": 400, "error": "Invalid MCP config payload"}, status_code=400)
         save_mcp_config_data(data)
-        return JSONResponse(content={"success": True}, status_code=200)
-    except ValueError:
-        return JSONResponse(content={"error": "Invalid MCP config payload"}, status_code=400)
+        return JSONResponse(content={"code": 200, "data": {"message": "ok"}})
     except MCPConfigError as exc:
         logger.error(f"Failed to save MCP config: {exc}")
-        return JSONResponse(content={"error": "Failed to save MCP config"}, status_code=500)
+        return JSONResponse(content={"code": 500, "error": "Failed to save MCP config"}, status_code=500)
 
 @app.get('/vision/config')
 async def get_vision_config():
     """获取视觉识别配置"""
     try:
         config = load_vision_config()
-        # Also return available models for UI
-        config["availableModels"] = collect_vision_capable_models()
         return JSONResponse(content={"code": 200, "data": config})
     except Exception as exc:
         logger.error(f"Failed to get vision config: {exc}")
-        return JSONResponse(content={"code": 500, "error": str(exc)}, status_code=500)
+        return JSONResponse(content={"code": 500, "error": "Failed to read vision config"}, status_code=500)
 
 @app.post('/vision/config')
 async def save_vision_config_endpoint(request: Request):
     """保存视觉识别配置"""
     try:
         data = await request.json()
-        # Remove availableModels if present (it's computed, not stored)
-        data.pop("availableModels", None)
-        if save_vision_config(data):
-            return JSONResponse(content={"code": 200, "data": {"message": "ok"}})
-        else:
-            return JSONResponse(content={"code": 500, "error": "Failed to save config"})
-    except Exception as exc:
+        if not isinstance(data, dict):
+            return JSONResponse(content={"code": 400, "error": "Invalid config format"}, status_code=400)
+        save_vision_config(data)
+        return JSONResponse(content={"code": 200, "data": {"message": "ok"}})
+    except VisionConfigError as exc:
         logger.error(f"Failed to save vision config: {exc}")
-        return JSONResponse(content={"code": 500, "error": str(exc)}, status_code=500)
+        return JSONResponse(content={"code": 500, "error": "Failed to save vision config"}, status_code=500)
 
 @app.get('/vision/preview/{filename}')
 async def vision_preview(filename: str):

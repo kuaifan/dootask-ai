@@ -11,7 +11,7 @@ from fastapi.concurrency import asynccontextmanager
 from helper.redis import RedisManager
 from helper.mcp import ensure_dootask_mcp_config
 from helper.config import MCP_HEALTH_URL, MCP_CHECK_INTERVAL, VISION_CLEANUP_INTERVAL
-from helper.vision import cleanup_old_images
+from helper.vision import cleanup_old_images, ensure_default_vision_config
 
 # 日志配置
 logger = logging.getLogger("ai")
@@ -54,6 +54,9 @@ async def lifespan_context(app: FastAPI):
     mcp_task = None
     vision_task = None
     try:
+        # Ensure default vision config exists
+        ensure_default_vision_config()
+
         mcp_task = asyncio.create_task(periodic_mcp_check(app))
         vision_task = asyncio.create_task(periodic_vision_cleanup())
         redis_manager = RedisManager()

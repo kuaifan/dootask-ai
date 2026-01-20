@@ -10,7 +10,6 @@ export interface VisionConfig {
   maxImageSize: number
   maxFileSize: number
   compressionQuality: number
-  availableModels?: SupportedModel[] // Computed, returned by API
 }
 
 export const DEFAULT_VISION_CONFIG: VisionConfig = {

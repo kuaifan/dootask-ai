@@ -1,8 +1,7 @@
 // ui/src/components/aibot/VisionEditorSheet.tsx
+import { useState, useEffect, useMemo } from "react"
+
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Sheet,
   SheetContent,
@@ -11,10 +10,14 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
+import { ScrollArea } from "@/components/ui/scroll-area"
+
 import type { VisionConfig } from "@/data/vision-config"
 import type { AIBotItem } from "@/data/aibots"
-import { useEffect, useState } from "react"
 
 interface VisionEditorSheetProps {
   open: boolean
@@ -36,6 +39,23 @@ export function VisionEditorSheet({
   const [editConfig, setEditConfig] = useState<VisionConfig>(config)
   const [saving, setSaving] = useState(false)
 
+  // Group all models by provider (like MCPEditorSheet)
+  const modelsByBot = useMemo(() => {
+    return aiBots.reduce((acc, bot) => {
+      const models = bot.models ?? []
+      if (models.length > 0) {
+        acc[bot.value] = {
+          label: bot.label,
+          models: models.map((model) => ({
+            value: model.value,
+            label: model.label,
+          })),
+        }
+      }
+      return acc
+    }, {} as Record<string, { label: string; models: { value: string; label: string }[] }>)
+  }, [aiBots])
+
   useEffect(() => {
     if (open) {
       setEditConfig(config)
@@ -56,156 +76,190 @@ export function VisionEditorSheet({
     return editConfig.supportedModels.some((m) => m.id === modelId)
   }
 
-  const toggleModel = (model: { value: string; label: string; support_vision: boolean }) => {
-    if (!model.support_vision) return
-
-    const isSelected = isModelSelected(model.value)
-    if (isSelected) {
-      setEditConfig({
-        ...editConfig,
-        supportedModels: editConfig.supportedModels.filter((m) => m.id !== model.value),
+  const handleToggleModel = (model: { value: string; label: string }, checked: boolean | string) => {
+    const isChecked = checked === true
+    if (isChecked) {
+      setEditConfig((prev) => {
+        if (prev.supportedModels.some((m) => m.id === model.value)) {
+          return prev
+        }
+        return {
+          ...prev,
+          supportedModels: [...prev.supportedModels, { id: model.value, name: model.label }],
+        }
       })
-    } else {
-      setEditConfig({
-        ...editConfig,
-        supportedModels: [
-          ...editConfig.supportedModels,
-          { id: model.value, name: model.label },
-        ],
-      })
+      return
     }
+    setEditConfig((prev) => ({
+      ...prev,
+      supportedModels: prev.supportedModels.filter((m) => m.id !== model.value),
+    }))
   }
 
-  // Group models by provider, only show those with support_vision capability
-  const modelsByProvider = aiBots
-    .map((bot) => ({
-      provider: bot.value,
-      label: bot.label,
-      models: (bot.models || []).filter((m) => m.support_vision),
-    }))
-    .filter((group) => group.models.length > 0)
+  const normalizeModels = (models: { id: string; name: string }[]) =>
+    [...models]
+      .map((model) => ({ id: model.id, name: model.name }))
+      .sort((a, b) => a.id.localeCompare(b.id))
+
+  const hasChanges =
+    editConfig.enabled !== config.enabled ||
+    editConfig.maxImageSize !== config.maxImageSize ||
+    editConfig.maxFileSize !== config.maxFileSize ||
+    editConfig.compressionQuality !== config.compressionQuality ||
+    JSON.stringify(normalizeModels(editConfig.supportedModels)) !==
+      JSON.stringify(normalizeModels(config.supportedModels))
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="sm:max-w-lg overflow-y-auto">
+      <SheetContent
+        side="right"
+        className="flex w-full max-w-2xl sm:max-w-4xl lg:max-w-4xl flex-col gap-6 overflow-hidden pt-[calc(var(--safe-area-top)+1.5rem)] pb-[calc(var(--safe-area-bottom)+1.5rem)]"
+        onEscapeKeyDown={(event) => event.preventDefault()}
+        onPointerDownOutside={(event) => event.preventDefault()}
+      >
         <SheetHeader>
           <SheetTitle>{t("vision.editTitle")}</SheetTitle>
           <SheetDescription>{t("vision.description")}</SheetDescription>
         </SheetHeader>
 
-        <div className="space-y-6 py-4">
-          {/* Enable Switch */}
-          <div className="flex items-center justify-between">
-            <Label htmlFor="vision-enabled">{t("vision.enabled")}</Label>
-            <Switch
-              id="vision-enabled"
-              checked={editConfig.enabled}
-              onCheckedChange={(checked) =>
-                setEditConfig({ ...editConfig, enabled: checked })
-              }
-            />
-          </div>
-
-          {/* Supported Models */}
-          <div className="space-y-3">
-            <Label>{t("vision.supportedModels")}</Label>
-            <p className="text-sm text-muted-foreground">{t("vision.supportedModelsTip")}</p>
-            <div className="space-y-4 max-h-64 overflow-y-auto border rounded-md p-3">
-              {modelsByProvider.map((group) => (
-                <div key={group.provider} className="space-y-2">
-                  <div className="text-sm font-medium text-muted-foreground">
-                    {group.label}
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {group.models.map((model) => (
-                      <div key={model.value} className="flex items-center space-x-2">
+        <ScrollArea className="flex-1">
+          <div className="flex flex-col gap-6 pl-0.5 pr-3 pb-6">
+            {/* Supported Models */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">
+                {t("vision.supportedModels")}
+              </Label>
+              <div className="space-y-4 rounded-md border p-4 max-h-96 overflow-y-auto">
+                {Object.entries(modelsByBot).map(([botValue, botInfo]) => (
+                  <div key={botValue} className="space-y-2">
+                    <div className="font-medium text-sm text-muted-foreground">
+                      {botInfo.label}
+                    </div>
+                    <div className="space-y-2 pl-4">
+                      {botInfo.models.map((model) => (
                         <Checkbox
+                          key={model.value}
                           id={`model-${model.value}`}
                           checked={isModelSelected(model.value)}
-                          onCheckedChange={() => toggleModel(model)}
-                        />
-                        <label
-                          htmlFor={`model-${model.value}`}
-                          className="text-sm cursor-pointer"
+                          onCheckedChange={(checked) => handleToggleModel(model, checked)}
                         >
                           {model.label}
-                        </label>
-                      </div>
-                    ))}
+                        </Checkbox>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+                {Object.keys(modelsByBot).length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    {t("vision.noModelsAvailable")}
+                  </p>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {t("vision.supportedModelsTip")}
+              </p>
+            </div>
+
+            {/* Image Limits Section */}
+            <div className="space-y-4">
+              <Label className="text-sm font-medium">
+                {t("vision.imageLimit")}
+              </Label>
+
+              {/* Max Image Size */}
+              <div className="space-y-2">
+                <Label htmlFor="max-image-size" className="text-sm text-muted-foreground">
+                  {t("vision.maxImageSize")} ({t("vision.maxImageSizeTip")})
+                </Label>
+                <Input
+                  id="max-image-size"
+                  type="number"
+                  min={256}
+                  max={8192}
+                  value={editConfig.maxImageSize}
+                  onChange={(e) =>
+                    setEditConfig({
+                      ...editConfig,
+                      maxImageSize: parseInt(e.target.value) || 2048,
+                    })
+                  }
+                />
+              </div>
+
+              {/* Max File Size */}
+              <div className="space-y-2">
+                <Label htmlFor="max-file-size" className="text-sm text-muted-foreground">
+                  {t("vision.maxFileSize")} ({t("vision.maxFileSizeTip")})
+                </Label>
+                <Input
+                  id="max-file-size"
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={editConfig.maxFileSize}
+                  onChange={(e) =>
+                    setEditConfig({
+                      ...editConfig,
+                      maxFileSize: parseInt(e.target.value) || 10,
+                    })
+                  }
+                />
+              </div>
+
+              {/* Compression Quality */}
+              <div className="space-y-2">
+                <Label htmlFor="compression-quality" className="text-sm text-muted-foreground">
+                  {t("vision.compressionQuality")} ({t("vision.compressionQualityTip")})
+                </Label>
+                <Input
+                  id="compression-quality"
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={editConfig.compressionQuality}
+                  onChange={(e) =>
+                    setEditConfig({
+                      ...editConfig,
+                      compressionQuality: parseInt(e.target.value) || 80,
+                    })
+                  }
+                />
+              </div>
             </div>
           </div>
+        </ScrollArea>
 
-          {/* Max Image Size */}
-          <div className="space-y-2">
-            <Label htmlFor="max-image-size">
-              {t("vision.maxImageSize")} ({t("vision.maxImageSizeTip")})
-            </Label>
-            <Input
-              id="max-image-size"
-              type="number"
-              min={256}
-              max={8192}
-              value={editConfig.maxImageSize}
-              onChange={(e) =>
-                setEditConfig({
-                  ...editConfig,
-                  maxImageSize: parseInt(e.target.value) || 2048,
-                })
-              }
-            />
+        <SheetFooter className="gap-3 border-t pt-4">
+          <div className="flex flex-1 flex-wrap justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <Label htmlFor="vision-enabled" className="text-sm font-medium">
+                {t("vision.enabled")}
+              </Label>
+              <Switch
+                id="vision-enabled"
+                checked={editConfig.enabled}
+                onCheckedChange={(checked) =>
+                  setEditConfig({ ...editConfig, enabled: checked })
+                }
+              />
+            </div>
+            <div className="flex items-center gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+              >
+                {t("vision.cancel")}
+              </Button>
+              <Button
+                type="button"
+                onClick={handleSave}
+                disabled={saving || !hasChanges}
+              >
+                {t("vision.save")}
+              </Button>
+            </div>
           </div>
-
-          {/* Max File Size */}
-          <div className="space-y-2">
-            <Label htmlFor="max-file-size">
-              {t("vision.maxFileSize")} ({t("vision.maxFileSizeTip")})
-            </Label>
-            <Input
-              id="max-file-size"
-              type="number"
-              min={1}
-              max={50}
-              value={editConfig.maxFileSize}
-              onChange={(e) =>
-                setEditConfig({
-                  ...editConfig,
-                  maxFileSize: parseInt(e.target.value) || 10,
-                })
-              }
-            />
-          </div>
-
-          {/* Compression Quality */}
-          <div className="space-y-2">
-            <Label htmlFor="compression-quality">
-              {t("vision.compressionQuality")} ({t("vision.compressionQualityTip")})
-            </Label>
-            <Input
-              id="compression-quality"
-              type="number"
-              min={1}
-              max={100}
-              value={editConfig.compressionQuality}
-              onChange={(e) =>
-                setEditConfig({
-                  ...editConfig,
-                  compressionQuality: parseInt(e.target.value) || 80,
-                })
-              }
-            />
-          </div>
-        </div>
-
-        <SheetFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            {t("vision.cancel")}
-          </Button>
-          <Button onClick={handleSave} disabled={saving}>
-            {t("vision.save")}
-          </Button>
         </SheetFooter>
       </SheetContent>
     </Sheet>

@@ -30,6 +30,10 @@ from helper.config import (
 logger = logging.getLogger(__name__)
 
 
+class VisionConfigError(Exception):
+    """Raised when vision configuration read/write fails."""
+
+
 def _get_default_vision_config() -> Dict[str, Any]:
     """
     Returns the default vision configuration.
@@ -51,6 +55,52 @@ def _get_default_vision_config() -> Dict[str, Any]:
     }
 
 
+def _normalize_vision_config(config: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Validate and normalize vision configuration.
+
+    Ensures all required fields exist with proper types and valid ranges.
+
+    Args:
+        config: Raw configuration dict
+
+    Returns:
+        Normalized configuration dict
+    """
+    defaults = _get_default_vision_config()
+
+    # Start with defaults and update with provided config
+    normalized = dict(defaults)
+    normalized.update(config)
+
+    # Ensure enabled is boolean
+    normalized["enabled"] = bool(normalized.get("enabled", False))
+
+    # Ensure supportedModels is a list of proper format
+    supported = normalized.get("supportedModels")
+    if not isinstance(supported, list):
+        normalized["supportedModels"] = []
+    else:
+        # Normalize each model entry
+        valid_models = []
+        for item in supported:
+            if isinstance(item, dict) and item.get("id"):
+                valid_models.append({
+                    "id": str(item["id"]),
+                    "name": str(item.get("name", item["id"])),
+                })
+            elif isinstance(item, str):
+                valid_models.append({"id": item, "name": item})
+        normalized["supportedModels"] = valid_models
+
+    # Ensure numeric fields are within valid ranges
+    normalized["maxImageSize"] = max(256, min(8192, int(normalized.get("maxImageSize", 2048))))
+    normalized["maxFileSize"] = max(1, min(50, int(normalized.get("maxFileSize", 10))))
+    normalized["compressionQuality"] = max(1, min(100, int(normalized.get("compressionQuality", 80))))
+
+    return normalized
+
+
 def load_vision_config() -> Dict[str, Any]:
     """
     Load vision configuration from JSON file.
@@ -64,36 +114,69 @@ def load_vision_config() -> Dict[str, Any]:
         if VISION_CONFIG_PATH.exists():
             with open(VISION_CONFIG_PATH, "r", encoding="utf-8") as f:
                 config = json.load(f)
-                # Merge with defaults to ensure all keys exist
-                default_config = _get_default_vision_config()
-                default_config.update(config)
-                return default_config
+                return _normalize_vision_config(config)
     except (json.JSONDecodeError, IOError) as e:
         logger.warning(f"Failed to load vision config: {e}, using defaults")
 
     return _get_default_vision_config()
 
 
-def save_vision_config(config: Dict[str, Any]) -> bool:
+def save_vision_config(config: Dict[str, Any]) -> None:
     """
     Save vision configuration to JSON file.
 
     Args:
         config: Vision configuration dict to save
 
-    Returns:
-        True if save was successful, False otherwise
+    Raises:
+        VisionConfigError: If save fails
     """
     try:
+        # Normalize config before saving
+        normalized = _normalize_vision_config(config)
+
         # Ensure config directory exists
         VISION_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
 
         with open(VISION_CONFIG_PATH, "w", encoding="utf-8") as f:
-            json.dump(config, f, indent=2, ensure_ascii=False)
-        return True
+            json.dump(normalized, f, indent=2, ensure_ascii=False)
     except IOError as e:
         logger.error(f"Failed to save vision config: {e}")
-        return False
+        raise VisionConfigError(f"Failed to save vision config: {e}") from e
+
+
+def ensure_default_vision_config() -> None:
+    """
+    Ensure vision configuration exists with default values.
+
+    If the config file doesn't exist, creates it with:
+    - enabled: True
+    - supportedModels: all vision-capable models
+    - default image processing settings
+    """
+    if VISION_CONFIG_PATH.exists():
+        return
+
+    # Collect all vision-capable models for default config
+    vision_models = collect_vision_capable_models()
+    default_supported = [
+        {"id": m["id"], "name": m["name"]}
+        for m in vision_models
+    ]
+
+    default_config = {
+        "enabled": True,
+        "supportedModels": default_supported,
+        "maxImageSize": 2048,
+        "maxFileSize": 10,
+        "compressionQuality": 80,
+    }
+
+    try:
+        save_vision_config(default_config)
+        logger.info("✅ 已写入默认视觉识别配置")
+    except Exception as e:
+        logger.error(f"❌ 写入视觉识别配置失败: {e}")
 
 
 def is_vision_enabled(config: Optional[Dict[str, Any]] = None) -> bool:
@@ -108,7 +191,7 @@ def is_vision_enabled(config: Optional[Dict[str, Any]] = None) -> bool:
     """
     if config is None:
         config = load_vision_config()
-    return config.get("enabled", True)
+    return config.get("enabled", False)
 
 
 def model_supports_vision_capability(model_name: str) -> bool:

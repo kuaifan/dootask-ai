@@ -32,14 +32,12 @@ export const loadVisionConfig = async (): Promise<VisionConfig> => {
  */
 export const saveVisionConfig = async (config: VisionConfig): Promise<boolean> => {
   try {
-    // Remove availableModels as it's computed
-    const { availableModels, ...saveData } = config
     const response = await fetch(`/ai/vision/config`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(saveData),
+      body: JSON.stringify(config),
     })
     if (!response.ok) {
       throw new Error(`Failed to save vision config: ${response.statusText}`)

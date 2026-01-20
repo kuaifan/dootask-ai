@@ -32,8 +32,12 @@ export const loadMCPConfigs = async (): Promise<MCPConfig[]> => {
       }
       throw new Error(`Failed to load MCP configs: ${response.statusText}`)
     }
-    const data: MCPConfigList = await response.json()
-    return ensureMcpIds(data.mcps)
+    const result = await response.json()
+    if (result.code === 200 && result.data) {
+      const data: MCPConfigList = result.data
+      return ensureMcpIds(data.mcps)
+    }
+    return []
   } catch (error) {
     console.error("Error loading MCP configs:", error)
     return []
@@ -54,6 +58,10 @@ export const saveMCPConfigs = async (mcps: MCPConfig[]): Promise<void> => {
     })
     if (!response.ok) {
       throw new Error(`Failed to save MCP configs: ${response.statusText}`)
+    }
+    const result = await response.json()
+    if (result.code !== 200) {
+      throw new Error(result.error || "Failed to save MCP configs")
     }
   } catch (error) {
     console.error("Error saving MCP configs:", error)
