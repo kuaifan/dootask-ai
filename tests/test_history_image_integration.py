@@ -1,7 +1,8 @@
 # tests/test_history_image_integration.py
 """Integration tests for history image processing."""
+import re
+
 import pytest
-import json
 
 
 class TestHistoryImageIntegration:
@@ -47,7 +48,6 @@ class TestHistoryImageIntegration:
         processed = await process_history_images(messages, mock_redis)
 
         # Extract MD5 from placeholder
-        import re
         placeholder = processed[0]["content"][0]["text"]
         match = re.search(r"\[Picture:history_([a-f0-9]+)\]", placeholder)
         assert match, f"No placeholder found in: {placeholder}"
