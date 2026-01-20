@@ -43,3 +43,26 @@ def extract_base64_and_mime(data_url: str) -> Optional[Tuple[str, str]]:
         return base64_data, mime_type
     except (ValueError, AttributeError):
         return None
+
+
+def find_last_human_index(messages: List[Any]) -> int:
+    """Find the index of the last human message in the list.
+
+    Args:
+        messages: List of messages (dict or tuple format)
+
+    Returns:
+        Index of last human message, or -1 if not found
+    """
+    last_index = -1
+    for i, msg in enumerate(messages):
+        msg_type = None
+        if isinstance(msg, dict):
+            msg_type = msg.get("type")
+        elif isinstance(msg, (list, tuple)) and len(msg) >= 1:
+            msg_type = msg[0]
+
+        if msg_type == "human":
+            last_index = i
+
+    return last_index

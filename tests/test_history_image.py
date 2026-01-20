@@ -34,3 +34,57 @@ class TestExtractBase64AndMime:
 
         result = extract_base64_and_mime("not a url")
         assert result is None
+
+
+class TestFindLastHumanIndex:
+    """Tests for find_last_human_index function."""
+
+    def test_find_last_human_in_list(self):
+        """Should find the index of the last human message."""
+        from helper.history_image import find_last_human_index
+
+        messages = [
+            {"type": "human", "content": "first"},
+            {"type": "assistant", "content": "response"},
+            {"type": "human", "content": "second"},
+            {"type": "assistant", "content": "response2"},
+        ]
+        assert find_last_human_index(messages) == 2
+
+    def test_find_last_human_at_end(self):
+        """Should find human message at the end."""
+        from helper.history_image import find_last_human_index
+
+        messages = [
+            {"type": "human", "content": "first"},
+            {"type": "assistant", "content": "response"},
+            {"type": "human", "content": "last"},
+        ]
+        assert find_last_human_index(messages) == 2
+
+    def test_no_human_messages(self):
+        """Should return -1 when no human messages exist."""
+        from helper.history_image import find_last_human_index
+
+        messages = [
+            {"type": "assistant", "content": "response"},
+            {"type": "system", "content": "system"},
+        ]
+        assert find_last_human_index(messages) == -1
+
+    def test_empty_list(self):
+        """Should return -1 for empty list."""
+        from helper.history_image import find_last_human_index
+
+        assert find_last_human_index([]) == -1
+
+    def test_tuple_format_messages(self):
+        """Should handle tuple format messages."""
+        from helper.history_image import find_last_human_index
+
+        messages = [
+            ("human", "first"),
+            ("assistant", "response"),
+            ("human", "last"),
+        ]
+        assert find_last_human_index(messages) == 2
