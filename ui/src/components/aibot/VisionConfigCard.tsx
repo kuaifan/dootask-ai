@@ -18,20 +18,20 @@ export function VisionConfigCard({ config, onEdit, t }: VisionConfigCardProps) {
 
   return (
     <Card>
-      <CardHeader className="pb-3">
+      <CardHeader className="pb-3 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Eye className="h-5 w-5" />
             <CardTitle className="text-base">{t("vision.title")}</CardTitle>
           </div>
           <Button variant="ghost" size="sm" onClick={onEdit}>
-            <Settings className="h-4 w-4 mr-1" />
+            <Settings />
             {t("vision.edit")}
           </Button>
         </div>
         <CardDescription>{t("vision.description")}</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-2">
+      <CardContent className="space-y-3">
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">{t("vision.enabled")}:</span>
           <Badge variant={config.enabled ? "default" : "secondary"}>
