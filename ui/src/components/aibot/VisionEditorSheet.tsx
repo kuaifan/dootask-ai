@@ -12,7 +12,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Switch } from "@/components/ui/switch"
-import type { SupportedModel, VisionConfig } from "@/data/vision-config"
+import type { VisionConfig } from "@/data/vision-config"
 import type { AIBotItem } from "@/data/aibots"
 import { useEffect, useState } from "react"
 

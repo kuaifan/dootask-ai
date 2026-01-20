@@ -10,6 +10,7 @@ export interface ModelItem {
   id: string
   name: string
   support_mcp: boolean
+  support_vision: boolean
 }
 
 export const parseModelNames = (raw: string | ModelItem[] | undefined | null) => {
@@ -20,7 +21,8 @@ export const parseModelNames = (raw: string | ModelItem[] | undefined | null) =>
     return raw.map(item => ({
       value: item.id,
       label: item.name,
-      support_mcp: item.support_mcp
+      support_mcp: item.support_mcp,
+      support_vision: item.support_vision ?? false
     }))
   }
 
@@ -34,7 +36,8 @@ export const parseModelNames = (raw: string | ModelItem[] | undefined | null) =>
       return {
         value,
         label: label || value,
-        support_mcp: false
+        support_mcp: false,
+        support_vision: false
       }
     })
     .filter((item) => item.value)
