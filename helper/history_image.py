@@ -130,3 +130,62 @@ async def replace_images_with_placeholders(
         })
 
     return new_content
+
+
+async def process_history_images(
+    messages: List[Any],
+    redis_manager: Any,
+) -> List[Any]:
+    """Process messages to replace historical images with placeholders.
+
+    The last human message keeps its images intact. All other human messages
+    have their images replaced with placeholders.
+
+    Args:
+        messages: List of messages (dict or tuple format)
+        redis_manager: Redis manager instance for caching
+
+    Returns:
+        Processed messages with historical images replaced
+    """
+    if not messages:
+        return messages
+
+    last_human_idx = find_last_human_index(messages)
+
+    # If no human messages or only one, return unchanged
+    if last_human_idx < 0:
+        return messages
+
+    result = []
+    for i, msg in enumerate(messages):
+        # Determine message type and content
+        if isinstance(msg, dict):
+            msg_type = msg.get("type")
+            msg_content = msg.get("content")
+        elif isinstance(msg, (list, tuple)) and len(msg) >= 2:
+            msg_type = msg[0]
+            msg_content = msg[1]
+        else:
+            result.append(msg)
+            continue
+
+        # Skip if not human or is the last human message
+        if msg_type != "human" or i == last_human_idx:
+            result.append(msg)
+            continue
+
+        # Process content to replace images
+        processed_content = await replace_images_with_placeholders(msg_content, redis_manager)
+
+        # Rebuild message in original format
+        if isinstance(msg, dict):
+            new_msg = dict(msg)
+            new_msg["content"] = processed_content
+            result.append(new_msg)
+        elif isinstance(msg, tuple):
+            result.append((msg_type, processed_content) + msg[2:] if len(msg) > 2 else (msg_type, processed_content))
+        else:
+            result.append([msg_type, processed_content] + list(msg[2:]) if len(msg) > 2 else [msg_type, processed_content])
+
+    return result

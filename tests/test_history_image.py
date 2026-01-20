@@ -167,3 +167,100 @@ class TestReplaceImagesWithPlaceholders:
         assert cached_data["data"] == base64_data
         assert cached_data["mime_type"] == "image/png"
         assert call_args[1]["ex"] == 7200  # 2 hours
+
+
+class TestProcessHistoryImages:
+    """Tests for process_history_images function."""
+
+    @pytest.fixture
+    def mock_redis(self, mocker):
+        """Mock Redis manager."""
+        mock = mocker.AsyncMock()
+        mock.set_cache = mocker.AsyncMock(return_value=True)
+        return mock
+
+    @pytest.mark.asyncio
+    async def test_replace_only_historical_images(self, mock_redis):
+        """Should replace images only in historical messages, not the last human message."""
+        from helper.history_image import process_history_images
+
+        messages = [
+            {"type": "human", "content": [
+                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,first"}},
+                {"type": "text", "text": "What is this?"},
+            ]},
+            {"type": "assistant", "content": "This is a cat."},
+            {"type": "human", "content": [
+                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,last"}},
+                {"type": "text", "text": "And this?"},
+            ]},
+        ]
+
+        result = await process_history_images(messages, mock_redis)
+
+        # First human message should have placeholder
+        assert result[0]["content"][0]["type"] == "text"
+        assert "[Picture:history_" in result[0]["content"][0]["text"]
+
+        # Last human message should keep original image
+        assert result[2]["content"][0]["type"] == "image_url"
+
+    @pytest.mark.asyncio
+    async def test_single_human_message_unchanged(self, mock_redis):
+        """Should not replace images when there's only one human message."""
+        from helper.history_image import process_history_images
+
+        messages = [
+            {"type": "human", "content": [
+                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,only"}},
+                {"type": "text", "text": "What is this?"},
+            ]},
+        ]
+
+        result = await process_history_images(messages, mock_redis)
+
+        # Should keep original image
+        assert result[0]["content"][0]["type"] == "image_url"
+        mock_redis.set_cache.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_no_images_unchanged(self, mock_redis):
+        """Should return messages unchanged when there are no images."""
+        from helper.history_image import process_history_images
+
+        messages = [
+            {"type": "human", "content": "Hello"},
+            {"type": "assistant", "content": "Hi there!"},
+            {"type": "human", "content": "How are you?"},
+        ]
+
+        result = await process_history_images(messages, mock_redis)
+
+        assert result == messages
+        mock_redis.set_cache.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_tuple_format_messages(self, mock_redis):
+        """Should handle tuple format messages."""
+        from helper.history_image import process_history_images
+
+        messages = [
+            ("human", [
+                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,first"}},
+                {"type": "text", "text": "What is this?"},
+            ]),
+            ("assistant", "This is a cat."),
+            ("human", [
+                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,last"}},
+                {"type": "text", "text": "And this?"},
+            ]),
+        ]
+
+        result = await process_history_images(messages, mock_redis)
+
+        # First human message should have placeholder
+        assert result[0][1][0]["type"] == "text"
+        assert "[Picture:history_" in result[0][1][0]["text"]
+
+        # Last human message should keep original image
+        assert result[2][1][0]["type"] == "image_url"
