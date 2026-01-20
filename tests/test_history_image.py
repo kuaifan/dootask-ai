@@ -88,3 +88,82 @@ class TestFindLastHumanIndex:
             ("human", "last"),
         ]
         assert find_last_human_index(messages) == 2
+
+
+class TestReplaceImagesWithPlaceholders:
+    """Tests for replace_images_with_placeholders function."""
+
+    @pytest.fixture
+    def mock_redis(self, mocker):
+        """Mock Redis manager."""
+        mock = mocker.AsyncMock()
+        mock.set_cache = mocker.AsyncMock(return_value=True)
+        return mock
+
+    @pytest.mark.asyncio
+    async def test_replace_single_image(self, mock_redis):
+        """Should replace a single image with placeholder."""
+        from helper.history_image import replace_images_with_placeholders
+
+        content = [
+            {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,abc123"}},
+            {"type": "text", "text": "What is this?"},
+        ]
+
+        result = await replace_images_with_placeholders(content, mock_redis)
+
+        assert len(result) == 2
+        assert result[0]["type"] == "text"
+        assert result[0]["text"].startswith("[Picture:history_")
+        assert result[1] == {"type": "text", "text": "What is this?"}
+        mock_redis.set_cache.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_preserve_non_base64_images(self, mock_redis):
+        """Should preserve images that are not base64 encoded."""
+        from helper.history_image import replace_images_with_placeholders
+
+        content = [
+            {"type": "image_url", "image_url": {"url": "https://example.com/image.jpg"}},
+            {"type": "text", "text": "What is this?"},
+        ]
+
+        result = await replace_images_with_placeholders(content, mock_redis)
+
+        assert len(result) == 2
+        assert result[0] == content[0]  # Unchanged
+        mock_redis.set_cache.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_string_content_unchanged(self, mock_redis):
+        """Should return string content unchanged."""
+        from helper.history_image import replace_images_with_placeholders
+
+        content = "Just a text message"
+
+        result = await replace_images_with_placeholders(content, mock_redis)
+
+        assert result == content
+        mock_redis.set_cache.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_cache_stores_correct_data(self, mock_redis):
+        """Should store base64 and mime type in cache."""
+        from helper.history_image import replace_images_with_placeholders
+        import hashlib
+        import json
+
+        base64_data = "abc123"
+        content = [
+            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_data}"}},
+        ]
+
+        await replace_images_with_placeholders(content, mock_redis)
+
+        expected_md5 = hashlib.md5(base64_data.encode()).hexdigest()
+        call_args = mock_redis.set_cache.call_args
+        assert call_args[0][0] == f"history_image_{expected_md5}"
+        cached_data = json.loads(call_args[0][1])
+        assert cached_data["data"] == base64_data
+        assert cached_data["mime_type"] == "image/png"
+        assert call_args[1]["ex"] == 7200  # 2 hours

@@ -66,3 +66,67 @@ def find_last_human_index(messages: List[Any]) -> int:
             last_index = i
 
     return last_index
+
+
+async def replace_images_with_placeholders(
+    content: Union[str, List[Dict[str, Any]]],
+    redis_manager: Any,
+) -> Union[str, List[Dict[str, Any]]]:
+    """Replace base64 images with placeholders and cache them.
+
+    Args:
+        content: Message content (string or list of content blocks)
+        redis_manager: Redis manager instance for caching
+
+    Returns:
+        Processed content with images replaced by placeholders
+    """
+    if isinstance(content, str):
+        return content
+
+    if not isinstance(content, list):
+        return content
+
+    new_content = []
+    for item in content:
+        if not isinstance(item, dict):
+            new_content.append(item)
+            continue
+
+        if item.get("type") != "image_url":
+            new_content.append(item)
+            continue
+
+        image_url_data = item.get("image_url", {})
+        url = image_url_data.get("url", "")
+
+        # Only process base64 data URLs
+        extracted = extract_base64_and_mime(url)
+        if not extracted:
+            new_content.append(item)
+            continue
+
+        base64_data, mime_type = extracted
+
+        # Calculate MD5 hash
+        md5_hash = hashlib.md5(base64_data.encode()).hexdigest()
+
+        # Cache the image data
+        cache_key = f"history_image_{md5_hash}"
+        cache_value = json.dumps({"data": base64_data, "mime_type": mime_type})
+
+        try:
+            await redis_manager.set_cache(cache_key, cache_value, ex=HISTORY_IMAGE_TTL)
+        except Exception as e:
+            logger.warning(f"Failed to cache history image: {e}")
+            # Fallback: keep original image
+            new_content.append(item)
+            continue
+
+        # Replace with placeholder
+        new_content.append({
+            "type": "text",
+            "text": f"[Picture:history_{md5_hash}]"
+        })
+
+    return new_content
