@@ -127,6 +127,10 @@ def get_model_instance(model_type, model_name, api_key, **kwargs):
         elif model_type in ("claude", "deepseek"):
             if thinking > 0:
                 config.update({"thinking": {"type": "enabled", "budget_tokens": 2000 if thinking == 1 else thinking}})
+        elif model_type == "ollama":
+            # langchain-ollama drops the response `thinking` field unless reasoning is truthy.
+            if thinking > 0:
+                config.update({"reasoning": True})
 
         common_params = {
             "model": model_name,
