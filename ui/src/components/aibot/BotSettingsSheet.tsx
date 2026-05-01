@@ -440,6 +440,11 @@ export const BotSettingsSheet = ({
               <div className="space-y-4 pr-3 pb-6">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">{modelEditor.field.label}</Label>
+                  {(modelEditor.bot.value === "claude" || modelEditor.bot.value === "ollama") && (
+                    <p className="text-xs text-muted-foreground">
+                      {t("sheet.models.thinkingHint")}
+                    </p>
+                  )}
                   <ModelListTable
                     value={modelEditorValue}
                     onChange={setModelEditorValue}
