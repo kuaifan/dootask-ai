@@ -46,6 +46,8 @@ TOOL_CALL_PATTERN = re.compile(r'\n?> <tool-use>Tool: [^<]+</tool-use>\n*')
 # 默认模型列表
 DEFAULT_MODELS = {
     "openai": [
+        {"id": "gpt-5.5", "name": "GPT-5.5", "support_mcp": True, "support_vision": True},
+        {"id": "gpt-5.5-pro", "name": "GPT-5.5 Pro", "support_mcp": True, "support_vision": True},
         {"id": "gpt-5.4", "name": "GPT-5.4", "support_mcp": True, "support_vision": True},
         {"id": "gpt-5.4-pro", "name": "GPT-5.4 Pro", "support_mcp": True, "support_vision": True},
         {"id": "gpt-5.4-mini", "name": "GPT-5.4 Mini", "support_mcp": True, "support_vision": True},
@@ -57,13 +59,14 @@ DEFAULT_MODELS = {
         {"id": "o4-mini", "name": "o4 Mini", "support_mcp": True, "support_vision": True},
     ],
     "claude": [
+        {"id": "claude-opus-4-7 (thinking)", "name": "Claude Opus 4.7", "support_mcp": True, "support_vision": True},
         {"id": "claude-opus-4-6 (thinking)", "name": "Claude Opus 4.6", "support_mcp": True, "support_vision": True},
         {"id": "claude-sonnet-4-6 (thinking)", "name": "Claude Sonnet 4.6", "support_mcp": True, "support_vision": True},
         {"id": "claude-haiku-4-5 (thinking)", "name": "Claude Haiku 4.5", "support_mcp": True, "support_vision": True},
     ],
     "deepseek": [
-        {"id": "deepseek-chat", "name": "DeepSeek-V3.2", "support_mcp": True, "support_vision": False},
-        {"id": "deepseek-reasoner", "name": "DeepSeek-V3.2-Reasoner", "support_mcp": True, "support_vision": False},
+        {"id": "deepseek-v4-pro", "name": "DeepSeek V4 Pro", "support_mcp": True, "support_vision": False},
+        {"id": "deepseek-v4-flash", "name": "DeepSeek V4 Flash", "support_mcp": True, "support_vision": False},
     ],
     "gemini": [
         {"id": "gemini-3.1-pro-preview", "name": "Gemini 3.1 Pro", "support_mcp": True, "support_vision": True},
@@ -78,17 +81,22 @@ DEFAULT_MODELS = {
         {"id": "grok-4-1-fast-non-reasoning", "name": "Grok 4.1 Fast", "support_mcp": True, "support_vision": True},
     ],
     "zhipu": [
+        {"id": "glm-5.1", "name": "GLM-5.1", "support_mcp": True, "support_vision": False},
         {"id": "glm-5", "name": "GLM-5", "support_mcp": True, "support_vision": False},
         {"id": "glm-5-turbo", "name": "GLM-5 Turbo", "support_mcp": True, "support_vision": False},
         {"id": "glm-5v-turbo", "name": "GLM-5V Turbo", "support_mcp": True, "support_vision": True},
         {"id": "glm-4.7", "name": "GLM-4.7", "support_mcp": True, "support_vision": False},
     ],
     "qianwen": [
+        {"id": "qwen3.6-max-preview", "name": "Qwen3.6 Max", "support_mcp": True, "support_vision": False},
+        {"id": "qwen3.6-plus", "name": "Qwen3.6 Plus", "support_mcp": True, "support_vision": True},
+        {"id": "qwen3.6-flash", "name": "Qwen3.6 Flash", "support_mcp": True, "support_vision": False},
         {"id": "qwen3-max", "name": "Qwen3 Max", "support_mcp": True, "support_vision": False},
         {"id": "qwen-plus", "name": "Qwen Plus", "support_mcp": True, "support_vision": False},
         {"id": "qwen-turbo", "name": "Qwen Turbo", "support_mcp": True, "support_vision": False},
     ],
     "wenxin": [
+        {"id": "ernie-x1.1", "name": "ERNIE X1.1", "support_mcp": False, "support_vision": False},
         {"id": "ernie-5.0-thinking-preview", "name": "ERNIE 5.0 Thinking", "support_mcp": False, "support_vision": True},
         {"id": "ernie-4.5-turbo-128k", "name": "ERNIE 4.5 Turbo 128K", "support_mcp": False, "support_vision": False},
         {"id": "ernie-4.5-turbo-vl-32k", "name": "ERNIE 4.5 Turbo VL 32K", "support_mcp": False, "support_vision": True},
@@ -100,6 +108,9 @@ DEFAULT_MODELS = {
 # 数值为官方文档的原始值
 CONTEXT_LIMITS = {
     "openai": {
+        # GPT-5.5: 1M context
+        "gpt-5.5": 1050000,
+        "gpt-5.5-pro": 1050000,
         # GPT-5.4: 1M context
         "gpt-5.4": 1050000,
         "gpt-5.4-pro": 1050000,
@@ -118,9 +129,9 @@ CONTEXT_LIMITS = {
         "default": 1000000,
     },
     "deepseek": {
-        # DeepSeek: 128K context
-        "deepseek-chat": 128000,
-        "deepseek-reasoner": 128000,
+        # DeepSeek V4: 1M context
+        "deepseek-v4-pro": 1000000,
+        "deepseek-v4-flash": 1000000,
         "default": 128000,
     },
     "gemini": {
@@ -132,7 +143,8 @@ CONTEXT_LIMITS = {
         "default": 2000000,
     },
     "zhipu": {
-        # GLM-5: 200K context
+        # GLM-5.x: 200K context
+        "glm-5.1": 200000,
         "glm-5": 200000,
         "glm-5-turbo": 200000,
         "glm-5v-turbo": 200000,
