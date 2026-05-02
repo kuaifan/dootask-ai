@@ -52,7 +52,41 @@ def _patch_anthropic_model_dump_bug():
     ChatAnthropic._model_dump_patched = True
 
 
+def _patch_deepseek_reasoning_content_bug():
+    """DeepSeek thinking mode requires that reasoning_content accompany any
+    assistant message that carries tool_calls when the conversation continues.
+    langchain-deepseek parses incoming reasoning_content into
+    AIMessage.additional_kwargs but never writes it back when serializing the
+    next request, so multi-turn agent loops trigger:
+        400 'The reasoning_content in the thinking mode must be passed back to the API.'
+    Re-inject it from additional_kwargs into the outgoing assistant dict."""
+    if getattr(ChatDeepSeek, "_reasoning_content_patched", False):
+        return
+    original = ChatDeepSeek._get_request_payload
+
+    def patched(self, input_, *, stop=None, **kwargs):
+        payload = original(self, input_, stop=stop, **kwargs)
+        try:
+            messages = self._convert_input(input_).to_messages()
+        except Exception:
+            return payload
+        outgoing = payload.get("messages") or []
+        if len(messages) != len(outgoing):
+            return payload
+        for src, dst in zip(messages, outgoing):
+            if not isinstance(src, AIMessage) or dst.get("role") != "assistant":
+                continue
+            rc = (getattr(src, "additional_kwargs", None) or {}).get("reasoning_content")
+            if rc and "reasoning_content" not in dst:
+                dst["reasoning_content"] = rc
+        return payload
+
+    ChatDeepSeek._get_request_payload = patched
+    ChatDeepSeek._reasoning_content_patched = True
+
+
 _patch_anthropic_model_dump_bug()
+_patch_deepseek_reasoning_content_bug()
 
 def get_model_instance(model_type, model_name, api_key, **kwargs):
     """根据模型类型返回对应的模型实例"""
@@ -124,9 +158,15 @@ def get_model_instance(model_type, model_name, api_key, **kwargs):
                 if gpt_major is not None and gpt_major >= 5 and "-chat" not in name_lower:
                     reasoning_effort = "medium" if "pro" in name_lower else "low"
                     config.update({"reasoning_effort": reasoning_effort})
-        elif model_type in ("claude", "deepseek"):
+        elif model_type == "claude":
             if thinking > 0:
                 config.update({"thinking": {"type": "enabled", "budget_tokens": 2000 if thinking == 1 else thinking}})
+        elif model_type == "deepseek":
+            if thinking > 0:
+                # DeepSeek's `thinking` is a body-level param; route via extra_body so
+                # it survives openai SDK kwarg validation (>=2.x rejects unknown args).
+                budget = 2000 if thinking == 1 else thinking
+                config.update({"extra_body": {"thinking": {"type": "enabled", "budget_tokens": budget}}})
         elif model_type == "ollama":
             # langchain-ollama drops the response `thinking` field unless reasoning is truthy.
             if thinking > 0:
